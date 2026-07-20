@@ -136,11 +136,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Checkout Build Assets
-        uses: actions/checkout@v6
-        with:
-          path: kernel_workspace/Action-Build
-
       - name: Maximize Build Space
         if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
         uses: easimon/maximize-build-space@master
@@ -151,6 +146,11 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
+
+      - name: Checkout Build Assets
+        uses: actions/checkout@v6
+        with:
+          path: kernel_workspace/Action-Build
 
       - name: Configure Git
         run: |
