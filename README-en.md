@@ -10,11 +10,11 @@
  
 # Action-Build-Plus
 **```Build kernels dedicated to the OnePlus Ace Race (oneplus_ace_race_t)```**
-> Fixed device configuration for fewer mistakes and stable builds
+> Fixed configuration, current upstream logic, stable builds
 
-This project is based on [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build). The workflow is fixed to `oneplus_ace_race_t`, targeting the OnePlus Ace Race on Android 13 / MT6895.
+This project is based on [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), while retaining the built-in OnePlus Ace Race Android 13 / MT6895 manifest.
 
-Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workflow**, and adjust the manager, KPM/KPN, SUSFS, and ZRAM options as needed. Download the AnyKernel3 package from the run's **Artifacts** after the build completes.
+Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workflow**, and adjust KPM/KPN, SUSFS, LZ4, and ZRAM as needed. Download the AnyKernel3 package from the run's **Artifacts** after the build completes.
  
 # Announcements
  
@@ -26,9 +26,9 @@ Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workfl
 >
 >>`_？ Android19 (？)`
 >
->>`_？ Android18 (？)`
+>>`_？ Android18 (？)`<strong>
 >
->>`_c Android17 (Cinnamon Bun)`<strong>
+>>`_c Android17 (Cinnamon Bun)`
 >
 >>`_b Android16 (Baklava)`
 >
@@ -48,9 +48,9 @@ Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workfl
 >
 >|| Average Duration Range|Maximum Duration|
 >|------------------|----------------------|------------|
->| `Ultra-fast build for all devices` | `1st:19min ~ 35min 2nd:9min ~ 19min` | `42min`|
->| `Kernel versions 5.10–5.15 built using official script` | `29min ~ 35min`| `45min`    |
->| `Kernel versions 6.1-6.12 built using official script` | `59min ~ 1h12min`| `1h28min` |
+>| `Ultra-fast build for all devices` | `1st:17min ~ 36min 2nd:6min ~ 17min` | `40/29min`|
+>| `Kernel versions 5.10-5.15 built using official script` | `20min ~ 35min`| `45min`    |
+>| `Kernel versions 6.1-6.12 built using official script` | `55min ~ 1h12min`| `1h28min` |
 >
 > >Using ccache may slow down the first build; this only applies to ultra-fast builds.
 >
@@ -73,17 +73,32 @@ Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workfl
 ------
  
 # Features in Development
-- [ ] ccache supports AB update mode
+- [ ] Kexec Kernel Hot Swap Support
+- [ ] Full support for all kernel versions of Fengchi
 - Toothpaste should be squeezed bit by bit, GPUs should be cut slice by slice, PPTs should be shown slide by slide, and code should be written line by line — more features and optimizations... stay tuned!
  
 # Changelog
 > Minor updates will be ignored. For more details, please refer to the commit.
  
+- Added `FakeConfig(HideConfig)` to hide the visibility of config options in `proc/config.gz`.  
+```
+Regular config option:
+set_config "CONFIG_IP_NF_TARGET_ECN=y"
+Hidden config option:
+set_hide_config "CONFIG_IP6_NF_NAT=y"
+```  
+ 
+- Added `FakePatch` to improve compatibility between multiple kernel sublevel and `susfs`.  
+ 
+- Added path recursion, providing full support for `Rust` build logic and `bindgen`/`Kleaf` dependency resolution on kernel version `6.12+`.  
+ 
+- `lz4`now automatically follows upstream upgrades and includes automatic error correction.  
+ 
+- Full support for `DroidSpaces`+`Ntsync`.  
+ 
 - Full support for `Re:Kernel`, automatically following upstream changes.  
  
 - Multiple external warnings enabled — checks whether the `fork source` is normal, if the kernel suffix build time contains abnormal symbol calls, etc.  
- 
-- Added multiple variables and automatic search, full adaptation to kernel version `6.12+`'s `Rust` build logic and dependencies.  
  
 - Complete `KPN` patch support.  
  
@@ -97,7 +112,7 @@ Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workfl
  
 - Supports modifying the `SUSFS` hash for rollback(Entering `-1` in this field will disable `SUSFS`)、Using the `SUSFS-DEV` development branch.  
  
-- For kernel versions `6.6–6.12`, supports replacing the `type` property in the device tree from `HMBIRD_OGKI` to `HMBIRD_GKI`; supports enabling Fengchi Driver[@reigadegr](https://github.com/reigadegr) [@cctv18](https://github.com/cctv18) [@Numbersf](https://github.com/Numbersf) [@HanKuCha](https://github.com/HanKuCha)  
+- For kernel versions `6.6-6.12`, supports replacing the `type` property in the device tree from `HMBIRD_OGKI` to `HMBIRD_GKI`; supports enabling Fengchi Driver[@reigadegr](https://github.com/reigadegr) [@cctv18](https://github.com/cctv18) [@Numbersf](https://github.com/Numbersf) [@HanKuCha](https://github.com/HanKuCha)  
  
 - Allow calling third-party dynamic source manifest repositories to support originally incompatible devices. It is essential to ensure that the naming of the source manifest and channel branches complies with the specifications. In the third-party manifest repository's `README.md`, if `CPUD` is not defined, any placeholder value can be used,the fast build feature must remain enabled and cannot be disabled.  
  
@@ -105,14 +120,15 @@ Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workfl
  
 - Support setting branches、custom version identifiers、fallback hash.  
 ```
-Set Branch: Change the original `susfs-main` to another `builtin` branch. Please modify according to the channel name in the SukiSU Ultra repository. Do not modify unless you are a developer. Do not leave it empty or remove it.
+Set Branch: Divided into manager-layer and built-in-layer. Please modify according to the channel name in the SukiSU Ultra repository. Do not modify unless you are a developer. Do not leave it empty or remove it.
 Custom Version Tag:
 Replace the original commit hash with your custom content, and move the commit hash to the end. This can be modified freely, but keep it reasonably short.
+The commit hash referred to here is the built-in-layer.
 v3.1.7-f5541e21@builtin
 ↓
 v3.1.7-CustomContent@builtin[f5541e21]
-If you don’t want to use a custom version tag, just leave it empty (e.g. susfs-main/).
-Regardless of whether the custom version identifier and fallback hash are enabled, they must be separated by two /(U+002F) and cannot be removed
+If you don’t want to use a custom version tag, just leave it empty (e.g. builtin/).
+Regardless of whether the custom version identifier and fallback hash are enabled, they must be separated by three /(U+002F) and cannot be removed.
 ```  
  
 - Fully automated retrieval of kernel information and build information.  
@@ -125,7 +141,7 @@ Regardless of whether the custom version identifier and fallback hash are enable
  
 - First to support custom kernel build time `UTS_VERSION` for all device models and all build methods.  
  
-- Use `ccache` to speed up the workflow, only effective when `fast build` is enabled.The cache needs to be regenerated by changing the `key` when using it for the first time or after major updates, which may reduce the speed.
+- Use `ccache-ECS`、`ltothin-cache`、`apt-cache` together to speed up the workflow, only effective when `fast build` is enabled.The cache needs to be regenerated by changing the `key` when using it for the first time or after major updates, which may reduce the speed.
 ```
 You can delete all keys by enabling the "是否删除所有缓存" option in the delete.yml(name: Workflow and Cache Cleanup) workflow.
 You can also go to
@@ -135,8 +151,6 @@ When there is a kernel-level update or a significant slowdown caused by changes 
 ```  
  
 - First to support for the kernel version `6.6+` new `setlocalversion` format using `echo`, fixing the issue where custom and randomly-generated pseudo-official suffixes were not applied. Now, this feature is fully supported across all device models and build methods.  
- 
-- Add `TRUSTY_EXISTS` to automatically detect whether the `6.6` kernel has defects in the kernel source code and determine whether `sed` is needed.  
  
 - Fix issues where `ZRAM` is unusable or unable to launch non-system apps.  
  
@@ -153,11 +167,11 @@ When there is a kernel-level update or a significant slowdown caused by changes 
  
 - Support displaying user-defined inputs during `Debug Show Selected Inputs` step; workflow name will also reflect some values.  
  
-- Removed potential version codes from the suffix of `Anykernel3.zip` config file, replaced with exact `Android` version numbers `XX.X.X`.
+- Removed potential version codes from the suffix of `Anykernel3.zip` config file, replaced with exact `Android` version numbers `XX.X.(X)`.
 ```
-AnyKernel3_SukiSUUltra_12896_OnePlusAce2Pro_Android15.0.0_KPM_VFS.zip
-AnyKernel3_SukiSUUltra_12896_OnePlus13_Android15.0.2_KPM_VFS.zip
-AnyKernel3_SukiSUUltra_12896_OnePlus11_Android14.1.0_KPM_VFS.zip
+AnyKernel3_SukiSUUltra_34895_OnePlusAce2Pro_Android16.0.0(5.15.180)_KPM_BBG_ILH_DS_REKER.zip
+AnyKernel3_SukiSUUltra_34895_OnePlus11_Android14.1.0(5.15.123)_KPM_BBG_ILH_DS_REKER.zip
+AnyKernel3_SukiSUUltra_34895_OnePlus15(AOSP)_Android16.0.0(6.12.23)_KPM_BBG_ILH_DS_REKER.zip
 ```  
  
 - Added support for the `LZ4K、LZ4KD` compression algorithm in the `zram` module.   [@ShirkNeko](https://github.com/ShirkNeko)  
