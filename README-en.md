@@ -1,6 +1,6 @@
 **`Enlish`** | [简体中文](README.md)
  
-[![Workflow Status](https://img.shields.io/github/actions/workflow/status/Numbersf/Action-Build/Build%20Kernel%20OnePlus.yml?branch=SukiSU-Ultra&label=Build&logo=github-actions&style=flat-square)](https://github.com/Numbersf/Action-Build/actions/workflows/Build%20Kernel%20OnePlus.yml?query=branch%3ASukiSU-Ultra)
+[![Workflow Status](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml?query=branch%3Amain)
  
 [![Kernel Manifest](https://img.shields.io/badge/Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/OnePlusOSS/kernel_manifest) [![Dynamic Kernel Manifest](https://img.shields.io/badge/Dynamic%20Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/kernel_manifest) [![Kernel Manifest Appendix](https://img.shields.io/badge/Kernel%20Manifest%20Appendix-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/Kernel_Manifest_Appendix) [![Fengchi Kernel](https://img.shields.io/badge/Fengchi%20Kernel-EB0029?logo=github&logoColor=white&style=flat-square)](https://github.com/Numbersf/SCHED_PATCH)
  
@@ -8,25 +8,13 @@
  
 <img align="right" src="pic/zakozako~.svg" width="100px" alt="zakozako~">
  
-# Action-Build
-**```Build Kernels for All OnePlus Devices```**
-> More efficient · More comprehensive · More Faster · More stable
- 
-Prohibit the promotion of forked repositories with **no modifications**; see [LICENSE](LICENSE)
-<details>
-<summary><strong>Click to view how to fork the project</strong></summary>
-<img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/make.gif" width="500"/>
-<summary>Please note, if you want to use other branch manager projects, make sure to disable 'Copy only the SukiSU Ultra branch' when forking.</summary>
-</details>
- 
-<details>
-<summary><strong>Click to view how to sync the forked project to the latest</strong></summary>
-<p>
-  <img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/syncfork.png" width="150"/>
-  <img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/syncfork(2).png" width="150"/>
-</p>
-<summary>Please sync promptly! Some updates may cause older versions to fail! If it still fails after syncing, delete and fork again! If the issue persists, then submit an issue for feedback.</summary>
-</details>
+# Action-Build-Plus
+**```Build kernels dedicated to the OnePlus Ace Race (oneplus_ace_race_t)```**
+> Fixed device configuration for fewer mistakes and stable builds
+
+This project is based on [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build). The workflow is fixed to `oneplus_ace_race_t`, targeting the OnePlus Ace Race on Android 13 / MT6895.
+
+Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workflow**, and adjust the manager, KPM/KPN, SUSFS, and ZRAM options as needed. Download the AnyKernel3 package from the run's **Artifacts** after the build completes.
  
 # Announcements
  
@@ -80,7 +68,6 @@ Prohibit the promotion of forked repositories with **no modifications**; see [LI
 >
 >``OnePlus Ace5`` does not support enabling Fengchi. Older models cannot use it even if the kernel includes it — do not force it  
 >
->``CAll Build Start UP`` is an **extremely dangerous** new workflow.**It has no new features and everything remains default and non-customizable**.This workflow is **strictly prohibited** for regular users and should use ``Build All OnePlus Kernels`` instead!  
 >
  
 ------
@@ -176,4 +163,3 @@ AnyKernel3_SukiSUUltra_12896_OnePlus11_Android14.1.0_KPM_VFS.zip
 - Added support for the `LZ4K、LZ4KD` compression algorithm in the `zram` module.   [@ShirkNeko](https://github.com/ShirkNeko)  
  
 - Support automatic download of latest `CI` version of `susfs` module and install via `ksud`; also automatically extracts different types manager `CI-APK` but does not install it.  
- 

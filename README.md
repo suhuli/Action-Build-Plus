@@ -1,6 +1,6 @@
 **`简体中文`** | [English](README-en.md)
  
-[![Workflow Status](https://img.shields.io/github/actions/workflow/status/Numbersf/Action-Build/Build%20Kernel%20OnePlus.yml?branch=SukiSU-Ultra&label=Build&logo=github-actions&style=flat-square)](https://github.com/Numbersf/Action-Build/actions/workflows/Build%20Kernel%20OnePlus.yml?query=branch%3ASukiSU-Ultra)
+[![Workflow Status](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml?query=branch%3Amain)
  
 [![Kernel Manifest](https://img.shields.io/badge/Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/OnePlusOSS/kernel_manifest) [![Dynamic Kernel Manifest](https://img.shields.io/badge/Dynamic%20Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/kernel_manifest) [![Kernel Manifest Appendix](https://img.shields.io/badge/Kernel%20Manifest%20Appendix-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/Kernel_Manifest_Appendix) [![Fengchi Kernel](https://img.shields.io/badge/Fengchi%20Kernel-EB0029?logo=github&logoColor=white&style=flat-square)](https://github.com/Numbersf/SCHED_PATCH)
  
@@ -8,25 +8,13 @@
  
 <img align="right" src="pic/zakozako~.svg" width="100px" alt="zakozako~">
  
-# Action-Build
-**```Build Kernels for All OnePlus Devices```**
->更高效 更全面 更快速 更稳定
- 
-禁止宣传**没有任何修改**的`fork`仓库，详见[LICENSE](LICENSE)
-<details>
-<summary><strong>点击查看如何fork项目</strong></summary>
-<img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/make.gif" width="500"/>
-<summary>请注意，如果你想使用其他分支管理器项目，请在fork时关闭“仅复制SukiSU Ultra分支”</summary>
-</details>
- 
-<details>
-<summary><strong>点击查看如何同步fork后的项目到最新</strong></summary>
-<p>
-  <img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/syncfork.png" width="150"/>
-  <img src="https://github.com/Numbersf/Action-Build/blob/SukiSU-Ultra/pic/syncfork(2).png" width="150"/>
-</p>
-<summary>请及时同步!某些更新可能会导致旧版失效报错!如果同步后依旧运行失败请删除并重新fork!完成以上步骤后仍有问题再反馈提交issue</summary>
-</details>
+# Action-Build-Plus
+**```专用于一加 Ace 竞速版（oneplus_ace_race_t）的内核编译```**
+>固定配置 更少误操作 更稳定
+
+本项目基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 构建，工作流中的配置文件已固定为 `oneplus_ace_race_t`，对应一加 Ace 竞速版 Android 13 / MT6895。
+
+进入 **Actions**，选择 **Build OnePlus Ace Race T Kernel**，点击 **Run workflow** 后按需设置管理器、KPM/KPN、SUSFS、ZRAM 等选项。构建完成后从运行页面的 **Artifacts** 下载 AnyKernel3 包。
  
 # 公告
  
@@ -80,7 +68,6 @@
 >
 >``OnePlus Ace5``不支持开启风驰,较老的机型即使内核加入也无法使用,不要勉强  
 >
->``CAll Build Start UP``是一个极其危险的新工作流文件,**它没有新功能且一切保持默认不可自定义**,新工作流**禁止**普通用户使用!普通用户请使用``Build All OnePlus Kernels``!  
 >
  
 ------
@@ -176,4 +163,3 @@ AnyKernel3_SukiSUUltra_12896_OnePlus11_Android14.1.0_KPM_VFS.zip
 - 添加 `zram` 模块的 `LZ4K、LZ4KD` 压缩算法支持[@ShirkNeko](https://github.com/ShirkNeko)  
  
 - 支持自动下载最新 `CI/Release` 的 `susfs` 模块并调用 `ksud` 安装、自动获取不同类型的管理器`CI-APK`解压到`Anykernel3`但不安装  
- 
