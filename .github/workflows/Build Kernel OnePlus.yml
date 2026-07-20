@@ -354,9 +354,11 @@ jobs:
 
       - name: Fork Check
         run: |
-          repo="${{ github.repository }}"; json=$(curl -s "https://api.github.com/repos/$repo")
-          parent=$(echo "$json" | grep -o '"full_name": *"[^"]*"' | head -n 2 | tail -n 1 | sed 's/.*"full_name": *"\([^"]*\)".*/\1/')
-          if [ -n "$parent" ] && [ "$parent" != "Numbersf/Action-Build" ]; then
+          repo="${{ github.repository }}"
+          json=$(curl -fsSL "https://api.github.com/repos/$repo")
+          is_fork=$(echo "$json" | jq -r '.fork // false')
+          parent=$(echo "$json" | jq -r '.parent.full_name // empty')
+          if [[ "$is_fork" == "true" && -n "$parent" && "$parent" != "Numbersf/Action-Build" ]]; then
             echo "::warning title=Source Warning::您使用的内核编译地址为非官方源，可能导致运行失败或内核异常。"
           fi
 
