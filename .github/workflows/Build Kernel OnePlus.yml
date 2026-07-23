@@ -9,6 +9,14 @@ on:
         default: oneplus_ace_race_t
         options:
           - oneplus_ace_race_t
+      MANAGER_SOURCE:
+        type: choice
+        description: "管理器及内核实现//Manager and kernel implementation"
+        required: true
+        default: SukiSU Ultra
+        options:
+          - SukiSU Ultra
+          - ReSukiSU
       SUSFS_CI:
         type: choice
         description: "SUSFS模块下载调用方向//SUSFS module branch"
@@ -44,7 +52,7 @@ on:
         default: "Fri Dec 12 11:37:03 UTC 2025"
       KSU_META:
         type: string
-        description: "管理器分支名(必填)/内置分支名(必填)/自定义版本标识(留空不修改)/回退分支提交哈希版本(留空不修改)//Manager Branch name (Required) / Builtin branch name (Required) / Custom version identifier (Leave blank to not modify) / Rollback branch commit hash version (Leave blank to not modify)"
+        description: "高级设置：管理器分支/内置分支/自定义标识/回退提交；通常保持默认//Advanced: manager branch / builtin branch / custom tag / rollback commit; normally keep default"
         required: false
         default: "main/builtin/Numbersf/"
       LZ4_UPDATE:
@@ -124,7 +132,7 @@ on:
 
 jobs:
   build:
-    name: ${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ contains(github.event.inputs.FILE, '_aosp') && ' [AOSP]' || '' }}${{ github.event.inputs.KPM == 'KPM' && ' [KPM]' || github.event.inputs.KPM == 'KPN' && ' [KPN]' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && ' [BBG]' || '' }}${{ github.event.inputs.SCHED_HMBIRD == 'true' && ' [HMBIRD]' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && ' [DS]' || '' }}${{ startsWith(github.event.inputs.ZRAM, '1/') && ' [ZRAM]' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && ' [REKER]' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && ' [LZ4UPD]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
+    name: ${{ github.event.inputs.MANAGER_SOURCE == 'ReSukiSU' && ' [ReSukiSU]' || ' [SukiSU]' }}${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ contains(github.event.inputs.FILE, '_aosp') && ' [AOSP]' || '' }}${{ github.event.inputs.KPM == 'KPM' && ' [KPM]' || github.event.inputs.KPM == 'KPN' && ' [KPN]' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && ' [BBG]' || '' }}${{ github.event.inputs.SCHED_HMBIRD == 'true' && ' [HMBIRD]' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && ' [DS]' || '' }}${{ startsWith(github.event.inputs.ZRAM, '1/') && ' [ZRAM]' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && ' [REKER]' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && ' [LZ4UPD]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "none"
@@ -308,6 +316,7 @@ jobs:
           echo "Selected ANDROID_VERSION: ${{ env.ANDROID_VERSION }}"
           echo "Selected BUILD_METHOD: ${{ env.BUILD_METHOD }}"
           echo "Selected FILE: ${{ github.event.inputs.FILE }}"
+          echo "Selected MANAGER_SOURCE: ${{ github.event.inputs.MANAGER_SOURCE }}"
           echo "Selected SUSFS_CI: ${{ github.event.inputs.SUSFS_CI }}"
           if [ "${{ github.event.inputs.SUSFS_CI }}" != "N/A" ]; then
             echo "::warning title=SUSFS Not Required::当前管理器已自带附加模块，无需启用 SUSFS 模块，强制启用可能导致不开机。"
@@ -619,10 +628,11 @@ jobs:
             chmod +x "$f"
           done
 
-      - name: Add SukiSU Ultra
+      - name: Add Selected KernelSU Implementation
         run: |
           cd kernel_workspace/kernel_platform
           KSU_META="${{ github.event.inputs.KSU_META }}"
+          MANAGER_SOURCE="${{ github.event.inputs.MANAGER_SOURCE }}"
 
           # 必须包含两个分隔符（至少四个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 3 ]]; then
@@ -632,12 +642,38 @@ jobs:
 
           # 解析字段：分支 / 自定义标识 / 手动 hash
           IFS='/' read -r KSU_MANAGER_BRANCH KSU_BUILTIN_BRANCH KSU_CUSTOM_TAG MANUAL_HASH <<< "$KSU_META"
+
+          case "$MANAGER_SOURCE" in
+            "ReSukiSU")
+              KSU_REPO="ReSukiSU/ReSukiSU"
+              MANAGER_ARTIFACT="Manager-release"
+              KSU_PACKAGE_LABEL="ReSukiSU"
+              if [[ "$KSU_BUILTIN_BRANCH" == "builtin" ]]; then
+                echo "ReSukiSU 不使用 builtin 分支，自动切换为 main"
+                KSU_BUILTIN_BRANCH="main"
+              fi
+              ;;
+            "SukiSU Ultra")
+              KSU_REPO="SukiSU-Ultra/SukiSU-Ultra"
+              MANAGER_ARTIFACT="manager"
+              KSU_PACKAGE_LABEL="SukiSUUltra"
+              ;;
+            *)
+              echo "错误: 不支持的管理器及内核实现: $MANAGER_SOURCE"
+              exit 11
+              ;;
+          esac
+
+          echo "KSU_REPO=$KSU_REPO" >> $GITHUB_ENV
+          echo "MANAGER_ARTIFACT=$MANAGER_ARTIFACT" >> $GITHUB_ENV
+          echo "KSU_PACKAGE_LABEL=$KSU_PACKAGE_LABEL" >> $GITHUB_ENV
           echo "KSU_MANAGER_BRANCH=$KSU_MANAGER_BRANCH" >> $GITHUB_ENV
           echo "KSU_BUILTIN_BRANCH=$KSU_BUILTIN_BRANCH" >> $GITHUB_ENV
+          echo "管理器及内核实现: $KSU_REPO"
           [[ -n "$KSU_CUSTOM_TAG" ]] && echo "自定义版本标识: $KSU_CUSTOM_TAG" || echo "自定义版本标识: 未启用"
           [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
 
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/${KSU_MANAGER_BRANCH}/kernel/setup.sh" | bash -s "$KSU_BUILTIN_BRANCH"
+          curl -LSs "https://raw.githubusercontent.com/${KSU_REPO}/${KSU_MANAGER_BRANCH}/kernel/setup.sh" | bash -s "$KSU_BUILTIN_BRANCH"
           cd ./KernelSU
 
           # 如果指定了手动 hash，就切换到该提交
@@ -647,10 +683,17 @@ jobs:
             SHORT_HASH=${MANUAL_HASH:0:8}
           fi
 
-          KSU_VERSION_TAG=$(curl -fsSL https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases/latest \
-            | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
-          if [[ -z "$KSU_VERSION_TAG" || "$(printf '%s\n' "$KSU_VERSION_TAG" "3.1.7" | sort -V | head -n1)" != "3.1.7" ]]; then
-            KSU_VERSION_TAG="3.1.7"
+          KSU_VERSION_TAG=$(git describe --abbrev=0 --tags 2>/dev/null | sed 's/^v//' || true)
+          if [[ -z "$KSU_VERSION_TAG" ]]; then
+            KSU_VERSION_TAG=$(curl -fsSL "https://api.github.com/repos/${KSU_REPO}/releases/latest" \
+              | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' || true)
+          fi
+          if [[ "$MANAGER_SOURCE" == "SukiSU Ultra" ]]; then
+            if [[ -z "$KSU_VERSION_TAG" || "$(printf '%s\n' "$KSU_VERSION_TAG" "3.1.7" | sort -V | head -n1)" != "3.1.7" ]]; then
+              KSU_VERSION_TAG="3.1.7"
+            fi
+          elif [[ -z "$KSU_VERSION_TAG" ]]; then
+            KSU_VERSION_TAG="0.0.0"
           fi
           echo "KSU_VERSION_TAG=$KSU_VERSION_TAG" >> $GITHUB_ENV
 
@@ -1439,25 +1482,24 @@ jobs:
           wget -O ksu_module_susfs_1.5.2+_Release.zip https://github.com/sidex15/ksu_module_susfs/releases/latest/download/ksu_module_susfs_1.5.2+.zip
           cp ksu_module_susfs_1.5.2+_Release.zip ./AnyKernel3/
 
-      - name: Download Latest SukiSU-Ultra APK from CI
+      - name: Download Selected Manager APK from CI
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MANAGER_ARTIFACT=manager
-
+          echo "Using repo: $KSU_REPO"
           echo "Using branch: $KSU_MANAGER_BRANCH"
           echo "Downloading artifact: $MANAGER_ARTIFACT"
 
-          run_id=$(gh api "repos/SukiSU-Ultra/SukiSU-Ultra/actions/workflows/build-manager.yml/runs?branch=$KSU_MANAGER_BRANCH&status=success&event=push&per_page=1" --jq '.workflow_runs[0].id' || echo "")
+          run_id=$(gh api "repos/${KSU_REPO}/actions/workflows/build-manager.yml/runs?branch=$KSU_MANAGER_BRANCH&status=success&event=push&per_page=1" --jq '.workflow_runs[0].id' || echo "")
 
           if [[ -z "$run_id" ]]; then
-            echo "No successful workflow run found on branch $KSU_MANAGER_BRANCH. Skipping download."
+            echo "No successful workflow run found for $KSU_REPO on branch $KSU_MANAGER_BRANCH. Skipping download."
             exit 0
           fi
-          artifact_url=$(gh api "repos/SukiSU-Ultra/SukiSU-Ultra/actions/runs/$run_id/artifacts" | jq -r ".artifacts[] | select(.name == \"$MANAGER_ARTIFACT\") | .archive_download_url" | head -n1)
+          artifact_url=$(gh api "repos/${KSU_REPO}/actions/runs/$run_id/artifacts" | jq -r ".artifacts[] | select(.name == \"$MANAGER_ARTIFACT\") | .archive_download_url" | head -n1)
 
-          if [[ -z "$artifact_url" ]]; then
+          if [[ -z "$artifact_url" || "$artifact_url" == "null" ]]; then
             echo "No artifact '$MANAGER_ARTIFACT' found in run $run_id. Skipping download."
             exit 0
           fi
@@ -1473,7 +1515,7 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
         with:
-          name: AnyKernel3_SukiSUUltra_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.CKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
+          name: AnyKernel3_${{ env.KSU_PACKAGE_LABEL }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.CKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
           path: ./AnyKernel3/*
 
       - name: Extract and Process ZRAM Module

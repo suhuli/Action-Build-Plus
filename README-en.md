@@ -14,7 +14,9 @@
 
 This project is based on [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), while retaining the built-in OnePlus Ace Race Android 13 / MT6895 manifest.
 
-Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workflow**, and adjust KPM/KPN, SUSFS, LZ4, and ZRAM as needed. Download the AnyKernel3 package from the run's **Artifacts** after the build completes.
+Open **Actions**, choose **Build OnePlus Ace Race T Kernel**, click **Run workflow**, and first select `SukiSU Ultra` or `ReSukiSU` under **Manager and kernel implementation**. Adjust KPM/KPN, SUSFS, LZ4, and ZRAM as needed, then download the AnyKernel3 package from the run's **Artifacts**.
+
+> `SukiSU Ultra` is the default already validated on this device. `ReSukiSU` switches both the in-kernel implementation and the bundled `Manager-release` APK. Rebuild and flash the kernel after changing this option; installing another manager APK alone does not switch the kernel implementation. Keep `KSU_META` at `main/builtin/Numbersf/` for normal use. The workflow automatically maps the unsupported `builtin` branch to `main` when ReSukiSU is selected.
  
 # Announcements
  
