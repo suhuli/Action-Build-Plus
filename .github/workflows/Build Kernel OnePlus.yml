@@ -804,16 +804,18 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
+            STABLE_SUSFS_COMMIT="be08face56c347e7ba9c4fb420c2463598a14f5d"
+            if [[ -z "$SUSFS_META" ]]; then
+              SUSFS_META="$STABLE_SUSFS_COMMIT"
+              echo "SUSFS 自动固定到 #3 已验证提交: $SUSFS_META"
+            fi
             git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.event.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
             cd susfs4ksu
-            if [ -n "$SUSFS_META" ]; then
-              if [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
-                git checkout HEAD~$SUSFS_META
-              else
-                git checkout "$SUSFS_META"
-              fi
+            if [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
+              git checkout HEAD~$SUSFS_META
             else
-              echo "SUSFS_META 为空，使用最新上游 SUSFS"
+              git fetch origin "$SUSFS_META" --depth=1
+              git checkout --detach FETCH_HEAD
             fi
             cd ..
           fi
