@@ -705,6 +705,7 @@ jobs:
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
           DEFAULT_KSU_BRANCH="${{ steps.manager.outputs.default_ksu_branch }}"
           KSU_META="${{ github.event.inputs.KSU_META }}"
+          STABLE_RESUKISU_COMMIT="930f61a654f35b98577e5da781fb30f9a1bc678b"
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -720,18 +721,25 @@ jobs:
             BRANCH_NAME="$DEFAULT_KSU_BRANCH"
           fi
 
+          if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" && -z "$MANUAL_HASH" ]]; then
+            MANUAL_HASH="$STABLE_RESUKISU_COMMIT"
+            echo "ReSukiSU 自动固定到 #3 已验证提交: $MANUAL_HASH"
+          fi
+
           echo "分支名: $BRANCH_NAME"
           [[ -n "$CUSTOM_TAG" ]] && echo "自定义版本标识: $CUSTOM_TAG" || echo "自定义版本标识: 未启用"
           [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
 
-          curl -LSs "https://raw.githubusercontent.com/${MANAGER_REPO}/${MANAGER_BRANCH}/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+          KSU_SETUP_REF="$MANAGER_BRANCH"
+          [[ -n "$MANUAL_HASH" ]] && KSU_SETUP_REF="$MANUAL_HASH"
+          curl -LSs "https://raw.githubusercontent.com/${MANAGER_REPO}/${KSU_SETUP_REF}/kernel/setup.sh" | bash -s "$BRANCH_NAME"
           cd ./KernelSU
 
           # 如果指定了手动 hash，就切换到该提交
           if [[ -n "$MANUAL_HASH" ]]; then
-            git fetch origin "$BRANCH_NAME" --depth=50
-            git checkout "$MANUAL_HASH"
-            SHORT_HASH=${MANUAL_HASH:0:8}
+            git fetch origin "$MANUAL_HASH" --depth=1
+            git checkout --detach FETCH_HEAD
+            SHORT_HASH=$(git rev-parse --short HEAD)
           fi
 
           KSU_VERSION_TAG=$(git describe --abbrev=0 --tags 2>/dev/null || true)
@@ -796,7 +804,7 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
+            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.event.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
             cd susfs4ksu
             if [ -n "$SUSFS_META" ]; then
               if [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
