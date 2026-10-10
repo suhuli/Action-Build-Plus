@@ -1,165 +1,81 @@
-**`简体中文`** | [English](README-en.md)
- 
-[![Workflow Status](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml?query=branch%3Amain)
- 
-[![Kernel Manifest](https://img.shields.io/badge/Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/OnePlusOSS/kernel_manifest) [![Dynamic Kernel Manifest](https://img.shields.io/badge/Dynamic%20Kernel%20Manifest-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/kernel_manifest) [![Kernel Manifest Appendix](https://img.shields.io/badge/Kernel%20Manifest%20Appendix-EB0029?logo=oneplus&logoColor=white&style=flat-square)](https://github.com/Numbersf/Kernel_Manifest_Appendix) [![Fengchi Kernel](https://img.shields.io/badge/Fengchi%20Kernel-EB0029?logo=github&logoColor=white&style=flat-square)](https://github.com/Numbersf/SCHED_PATCH)
- 
-[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/AndroidCoreLayer) [![Coolapk](https://img.shields.io/badge/Follow-Coolapk-3DDC84?style=flat-square&logo=android&logoColor=white)](http://www.coolapk.com/u/28259173)
- 
-<img align="right" src="pic/zakozako~.svg" width="100px" alt="zakozako~">
- 
+**简体中文** | [English](README-en.md)
+
+[![Build](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml)
+
 # Action-Build-Plus
-**```专用于一加 Ace 竞速版（oneplus_ace_race_t）的内核编译```**
->固定配置 更少误操作 更稳定
 
-本项目基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 构建，工作流中的配置文件已固定为 `oneplus_ace_race_t`，对应一加 Ace 竞速版 Android 13 / MT6895。
+用 GitHub Actions 为 **一加 Ace 竞速版**（`oneplus_ace_race_t`）编译带 **ReSukiSU / SukiSU-Ultra + SUSFS** 的内核，产物为可直接刷入的 AnyKernel3 刷机包。
 
-进入 **Actions**，选择 **Build OnePlus Ace Race T Kernel**，点击 **Run workflow** 后按需设置管理器、KPM/KPN、SUSFS、ZRAM 等选项。构建完成后从运行页面的 **Artifacts** 下载 AnyKernel3 包。
- 
-# 公告
- 
-------
-> [!NOTE]
->配置文件中最后的一个``_？``后缀是你正在使用系统版本的代号。而无后缀的大部分是出厂``Android``版本。**``Android16``起从``_b``开始重新计算。** 判断具体的适用安卓版本请手动打开清单,手动改成其他代号,前提是它们确实存在。
-> <details>
-> <summary><strong>点击查看详细的版本代号</strong></summary>
->
->>`_？ Android19 (？)`
->
->>`_？ Android18 (？)`
->
->>`_c Android17 (Cinnamon Bun)`<strong>
->
->>`_b Android16 (Baklava)`
->
->>`_v Android15 (Vanilla Ice Cream)`
->
->>`_u Android14 (Upside Down Cake)`
->
->>`_t Android13 (Tiramisu)`
->
->>`_s Android12 (Snow Cone)`</strong>
->
-> </details>
- 
-------
-> [!IMPORTANT]
->关于要跑多久的问题的数据参考
->
->|| 平均耗时范围|最大耗时|
->|------------------|----------------------|------------|
->| `极速构建所有机型` | `1st:19min ~ 35min 2nd:9min ~ 19min` | `42min`|
->| `内核版本5.10-5.15使用官方脚本构建` | `29min ~ 35min`| `45min`    |
->| `内核版本6.1-6.12使用官方脚本构建` | `59min ~ 1h12min`| `1h28min` |
->
-> >使用ccache第一次可能会减速、仅极速构建生效
->
-> >repo工具版本差异可能会影响耗时
->
->也就是说,如果你运行的时长超过了对应机型的最高时间,请暂停重新运行并查看step,看看有没有占用时间过长的步骤,特别注意Initialize Repo and Sync这一步,受到上游REPO工具链的影响会经常出问题.这一步超过15min可以重新尝试一次,如果依旧失败请等待修复
- 
-------
+| 项目 | 值 |
+|---|---|
+| 机型 | 一加 Ace 竞速版（MT6895） |
+| 系统 | Android 13 |
+| 内核 | 5.10.110（GKI，android12-5.10） |
+| 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
+| 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
+
+本项目基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 精简而来，只保留这一台机型，默认值按日常使用组合设置，避免误操作。
+
+## 使用
+
+1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
+2. 默认参数就是推荐组合，直接点 **Run workflow** 即可；需要时再调整。
+3. 等待约 25 分钟（缓存命中时更快），在运行页面底部 **Artifacts** 下载 `AnyKernel3_...` 压缩包。
+4. 解压一次得到内层刷机包，用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入，或在 Recovery 中刷入。
+
 > [!CAUTION]
->请不要在**保``root``更新**时音量下安装模块请使用音量上跳过!现在也基本上不需要安装了,使用``SukiSU Ultra附加模块``即可  
->
->如果你开启了``ZRAM``算法,请在刷入``Anykernel3``重启**前**安装``ZRAM``模块,部分参数请自行调整。另外``5.10``内核暂不支持开启``ZRAM``算法,因为没有找到``zram.ko``路径,但是生成的``Anykernel3``依旧可用  
->
->``MTK``设备不支持开启网络功能拓展,不支持关闭极速构建  
->
->``OnePlus Ace5``不支持开启风驰,较老的机型即使内核加入也无法使用,不要勉强  
->
->
- 
-------
- 
-# 开发中的功能
-- [ ] ccache支持AB更新模式
-- 牙膏要一点一点挤,显卡要一刀一刀切,PPT要一张一张放,代码要一行一行写,更多功能及优化...敬请期待....
- 
-# 更新日志
->小的更新内容将被忽略 更多内容请参看提交
- 
-- 完整适配`Re:Kernel`,自动跟随上游  
- 
-- 多处启用外部警告-检查`fork源`是否正常、内核后缀构建时间是否存在异常符号调用等  
- 
-- 新增多个变量以及自动搜索,完整适配内核版本`6.12+`的`Rust`构建逻辑和依赖  
- 
-- 完整的`KPN`修补支持  
- 
-- 可在设置中直接调整`ZRAM`开关、算法名、大小,自动处理`ZRAM附加模块`,附加模块来自[@FURLC](https://github.com/FURLC)  
- 
-- 完整版`Unicode Bypass`支持,适配全内核版本  
- 
-- 首发修复`MTK-5.10`构建报错  
- 
-- 首发新增支持大量`MTK`机型,清单和路径问题成功被攻克  
- 
-- 支持修改`SUSFS`哈希值进行回退(此项输入`-1`则关闭`SUSFS`)、调用`SUSFS-DEV`开发分支  
- 
-- 内核版本为``6.6-6.12``支持将设备树中的`type`属性从`HMBIRD_OGKI`替换为`HMBIRD_GKI`;支持开启风驰驱动[@reigadegr](https://github.com/reigadegr) [@cctv18](https://github.com/cctv18) [@Numbersf](https://github.com/Numbersf) [@HanKuCha](https://github.com/HanKuCha)  
- 
-- 允许调用第三方动态源码清单仓库,以支持原本不兼容的机型。必须确保源码清单与频道分支的命名符合规范。在第三方清单仓库的`README.md`中,如未定义`CPUD`,可填写任意占位值。此外,极速构建必须保持启用,不可关闭  
- 
-- 支持`Baseband-guard(LSMBBG)`  
- 
-- 支持设置分支、自定义版本标识、修改对应分支的提交哈希来进行回退  
+> 刷内核有风险。刷之前请备份当前 `boot` 分区，变砖时可用它恢复。
+
+## 参数说明
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU 分支。`RESUKISU` 对应 ReSukiSU；`MIUIX`/`MD3` 对应 SukiSU-Ultra 的两种界面；`_SPOOF` 为伪装版管理器 |
+| SUSFS 模块 `SUSFS_CI` | `N/A` | 是否把 SUSFS 用户态模块打包进刷机包 |
+| 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 不支持 |
+| SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS |
+| 动态清单 `DYNAMIC_REPO` | `Numbersf` | 动态源码清单仓库的所有者，一般不用改 |
+| 构建时间 `BUILD_TIME` | `F` | 写入 `uname -v` 的时间。`F` 为实际编译时间，也可填任意时间字符串 |
+| 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
+| ZRAM `ZRAM` | `0/lz4kd/8589934592` | `开关/算法/大小`。5.10 内核找不到 `zram.ko`，目前不建议开启 |
+| 内核后缀 `SUFFIX` | 空 | `uname -r` 的后缀，留空使用随机字符串 |
+| 内核等级 `SUBLEVEL` | 空 | 伪装内核小版本号，系统更新后内核源码未同步导致无法开机时使用 |
+| 极速构建 `FAST_BUILD` | 开 | MTK 机型必须开启 |
+| `LSM_BBG` | 开 | Baseband-guard，防止基带/关键分区被恶意改写 |
+| `CCM` | 开 | BBR 拥塞控制 + ECN |
+| `NETFILTER` | 开 | 网络功能扩展，MTK 机型上不生效 |
+| `UNICODE_BYPASS` | 开 | 修复用 Unicode 不可见字符绕过路径检测的漏洞 |
+| `SCHED_HMBIRD` | 关 | 风驰调度，本机型不支持 |
+| `DROID_SPACES` / `RE_KERNEL` | 关 | Droid Spaces 容器支持 / Re:Kernel 墓碑支持 |
+| `SUSFS_DEV` | 关 | 使用 SUSFS 开发分支，仅测试用 |
+| `SPACE_NOCLEAN` / `BUILD_NOCCACHE` | 关 | 跳过磁盘清理 / 不使用 ccache |
+
+### 自定义版本标识
+
+`KSU_META` 第二段会写进管理器显示的内核版本名，只保留字母、数字和 `._+~-`：
+
 ```
-设置分支:原builtin改成其他分支,请按照SukiSU Ultra仓库频道名进行修改,非开发者禁止修改,不可留空、删除
-自定义版本标识:
-将原先的提交hash改成自定义内容,再将提交hash放在最后 这个可以随意改,不要太长
-v3.1.7-f5541e21@builtin
-↓
-v3.1.7-自定义内容@builtin[f5541e21]
-当你不想起用自定义版本标识时,就留空(builtin/)
-无论是否启用自定义版本标识和回退哈希,必须用两个/(U+002F)隔开,不可删除
-```  
- 
-- 全自动化获取内核信息及构建信息  
- 
-- 允许修改内核等级`SUBLEVEL`,用于欺骗系统-解决系统更新后`SUBLEVEL`改变但内核源码没有更新导致的验证而无法开机的问题  
- 
-- 允许分批次每次`9`个运行多个工作流,普通用户禁止使用  
- 
-- 删除`file-map`及编译方式并由主工作流自行选择[@Bouteillepleine](https://github.com/Bouteillepleine)  
- 
-- 首发支持全机型、全编译方式自定义内核构建时间`UTS_VERSION`  
- 
-- 使用`ccache`加速工作流,仅开启极速构建`fast build`有效,第一次使用、重大更新需要换`key`要重新生成`cache`,可能会降低速度  
+留空      v4.2.0-rc3-239e1e88@ReSukiSU
+填 abc    v4.2.0-rc3-abc@ReSukiSU[239e1e88]
 ```
-你可以通过使用delete.yml(name: Workflow and Cache Cleanup)工作流开启“是否删除所有缓存”的选项来删除所有的key
-也可以去
-https://github.com/你的用户名(username)/你的仓库名/actions/caches
-直接手动删除对应的key
-当内核级别更新、GitHub上游工具链改变导致的速度明显变慢时,就需要进行以上操作
-```  
- 
-- 首发适配内核版本`6.6+`的`setlocalversion`文件中`echo`新格式,修复自定义&随机伪官方后缀失效。现在,全机型、全编译方式完美支持此功能  
- 
-- 添加`TRUSTY_EXISTS`用于自动检测`6.6`内核是否内核源码存在缺陷,判断是否`sed`处理  
- 
-- 修复`ZRAM`无法使用或者打不开非系统应用的问题  
- 
-- 修复内核版本介于`5.15.0-5.15.123`之间官方脚本跑不出,极速编译结果有问题[@zzh20188](https://github.com/zzh20188)  
- 
-- 允许自定义内核后缀← **`beta`**
-```
-1.当自定义内核后缀为空时,使用随机字符串,不再是默认的“x.xx.xxx-androidxx-8-o-g3b1e97b8b29f”
-2.当自定义启用时,修改内核为“x.xx.xxx-androidxx-自定义内容”,同时也不再保留androidxx-8-o-g3b1e97b8b29f
-3.当使用Fast Build(极速构建)时,为新的源内核信息x.xx.xxx-o-g3b1e97b8b29f添加缺失的内核android版本号,再进行1或2中的操作
-```  
- 
-- 支持极速编译`(5.10[首发]、5.15[首发]、6.1、6.1+)`  
- 
-- 支持显示自己填入的内容在`Debug Show Selected Inputs`这一步,同时工作流名称也可以看到一些东西  
- 
-- 从写入 `Anykernel3.zip` 的配置文件后缀中删除潜在的版本代码,替换成精确的 `Android` 版本号`XX.X.X`
-```
-AnyKernel3_SukiSUUltra_12896_OnePlusAce2Pro_Android15.0.0_KPM_VFS.zip
-AnyKernel3_SukiSUUltra_12896_OnePlus13_Android15.0.2_KPM_VFS.zip
-AnyKernel3_SukiSUUltra_12896_OnePlus11_Android14.1.0_KPM_VFS.zip
-```  
- 
-- 添加 `zram` 模块的 `LZ4K、LZ4KD` 压缩算法支持[@ShirkNeko](https://github.com/ShirkNeko)  
- 
-- 支持自动下载最新 `CI/Release` 的 `susfs` 模块并调用 `ksud` 安装、自动获取不同类型的管理器`CI-APK`解压到`Anykernel3`但不安装  
+
+刷机包名中的版本号直接取自编译日志，和管理器里显示的一致。
+
+## 缓存
+
+极速构建会用 ccache 缓存编译结果。GitHub 会删除 7 天没被访问的缓存，所以隔一段时间再编译会变慢，这是正常的。
+
+需要清理缓存时，运行 **Workflow and Cache Cleanup** 工作流并勾选删除缓存。
+
+## 致谢
+
+- [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build)：原始工作流与补丁
+- [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU)
+- [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
+- [osm0sis/AnyKernel3](https://github.com/osm0sis/AnyKernel3)
+- [vc-teahouse/Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
+- ZRAM 附加模块来自 [@FURLC](https://github.com/FURLC)
+
+## 许可
+
+见 [LICENSE](LICENSE)（沿用原项目许可）。

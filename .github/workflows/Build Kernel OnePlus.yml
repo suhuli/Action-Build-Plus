@@ -13,7 +13,7 @@ on:
         type: choice
         description: "管理器调用方向"
         required: true
-        default: MIUIX
+        default: RESUKISU
         options:
           - MIUIX
           - MIUIX_SPOOF
@@ -32,9 +32,9 @@ on:
           - N/A
       KPM:
         type: choice
-        description: "内核模块实现方式"
+        description: "内核模块实现方式(ReSukiSU不支持KPM)"
         required: true
-        default: KPM
+        default: N/A
         options:
           - KPM
           - KPN
@@ -53,12 +53,12 @@ on:
         type: string
         description: "自定义构建时间(输入F使用当前UTC时间)"
         required: false
-        default: "Fri Dec 12 11:37:03 UTC 2025"
+        default: "F"
       KSU_META:
         type: string
-        description: "分支名(必填)/自定义版本标识(留空不修改)/回退分支提交哈希版本(留空不修改)"
+        description: "分支名(留空用默认)/自定义版本标识(留空不修改)/回退提交哈希(留空不修改)"
         required: false
-        default: "builtin/Numbersf/"
+        default: "//"
       ZRAM:
         type: string
         description: "ZRAM(0关闭1开启)/算法名/大小"
@@ -97,7 +97,7 @@ on:
         type: boolean
         description: "是否添加Unicode不可见字码点绕过读取漏洞修复？"
         required: true
-        default: false
+        default: true
       SCHED_HMBIRD:
         type: boolean
         description: "是否添加风驰驱动1.0？"
@@ -402,16 +402,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --global user.name "Numbersf"
-          git config --global user.email "263623064@qq.com"
-
-      - name: Fork Check
-        run: |
-          repo="${{ github.repository }}"; json=$(curl -s "https://api.github.com/repos/$repo")
-          parent=$(echo "$json" | grep -o '"full_name": *"[^"]*"' | head -n 2 | tail -n 1 | sed 's/.*"full_name": *"\([^"]*\)".*/\1/')
-          if [ -n "$parent" ] && [ "$parent" != "Numbersf/Action-Build" ]; then
-            echo "::warning title=Source Warning::您使用的内核编译地址为非官方源，可能导致运行失败或内核异常。"
-          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Install Dependencies + APTC
         uses: awalsh128/cache-apt-pkgs-action@latest 
@@ -715,6 +707,9 @@ jobs:
 
           # 解析字段：分支 / 自定义标识 / 手动 hash
           IFS='/' read -r BRANCH_NAME CUSTOM_TAG MANUAL_HASH <<< "$KSU_META"
+          [[ -z "$BRANCH_NAME" ]] && BRANCH_NAME="$DEFAULT_KSU_BRANCH"
+          # 自定义标识会写进内核版本名，只保留安全字符
+          CUSTOM_TAG=$(printf '%s' "$CUSTOM_TAG" | tr -cd 'A-Za-z0-9._+~-')
 
           if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" && "$BRANCH_NAME" == "builtin" ]]; then
             echo "ReSukiSU 不存在 builtin 分支，自动回退到 $DEFAULT_KSU_BRANCH"
@@ -768,29 +763,47 @@ jobs:
             VERSION_FULL="v$KSU_VERSION_TAG-$CUSTOM_TAG@$BRANCH_NAME[$USE_HASH]"
           fi
 
-          ESC_VERSION_FULL=$(printf '%s' "$VERSION_FULL" | sed 's/[&|\\/]/\\&/g')
-          ESC_KSU_VERSION_TAG=$(printf '%s' "$KSU_VERSION_TAG" | sed 's/[&|\\/]/\\&/g')
-
-          if grep -q '^KSU_VERSION_FULL := ' kernel/Makefile; then
-            sed -i "s|^KSU_VERSION_FULL := .*|KSU_VERSION_FULL := $ESC_VERSION_FULL|" kernel/Makefile
+          if grep -q 'KSU_FULL_NAME_FORMAT' kernel/Kbuild 2>/dev/null; then
+            # ReSukiSU：版本名由 CONFIG_KSU_FULL_NAME_FORMAT 生成，不改源码（改动会让版本名带上 -dirty）
+            if [[ -n "$CUSTOM_TAG" ]]; then
+              echo "KSU_NAME_FORMAT=%TAG_NAME%-${CUSTOM_TAG}@%REPO_NAME%[%COMMIT_SHA%]" >> "$GITHUB_ENV"
+              echo "版本名格式: %TAG_NAME%-${CUSTOM_TAG}@%REPO_NAME%[%COMMIT_SHA%]"
+            fi
           else
-            awk -v full="$VERSION_FULL" '
-              /^REPO_OWNER :=/ && !done {
-                print
-                print ""
-                print "KSU_VERSION_FULL := " full
-                done=1
-                next
-              }
-              { print }
-            ' kernel/Makefile > kernel/Makefile.tmp && mv kernel/Makefile.tmp kernel/Makefile
+            ESC_VERSION_FULL=$(printf '%s' "$VERSION_FULL" | sed 's/[&|\\/]/\\&/g')
+            ESC_KSU_VERSION_TAG=$(printf '%s' "$KSU_VERSION_TAG" | sed 's/[&|\\/]/\\&/g')
+            if grep -q '^KSU_VERSION_FULL := ' kernel/Makefile; then
+              sed -i "s|^KSU_VERSION_FULL := .*|KSU_VERSION_FULL := $ESC_VERSION_FULL|" kernel/Makefile
+            elif grep -q '^REPO_OWNER :=' kernel/Makefile; then
+              awk -v full="$VERSION_FULL" '
+                /^REPO_OWNER :=/ && !done {
+                  print
+                  print ""
+                  print "KSU_VERSION_FULL := " full
+                  done=1
+                  next
+                }
+                { print }
+              ' kernel/Makefile > kernel/Makefile.tmp && mv kernel/Makefile.tmp kernel/Makefile
+            fi
+            if grep -q '^KSU_VERSION_API := ' kernel/Makefile; then
+              sed -i "s|^KSU_VERSION_API := .*|KSU_VERSION_API := $ESC_KSU_VERSION_TAG|" kernel/Makefile
+            fi
           fi
+          # 刷新 git 索引：只改了时间戳的文件不应被判定为改动（否则版本名带 -dirty）
+          git update-index -q --refresh || true
 
-          if grep -q '^KSU_VERSION_API := ' kernel/Makefile; then
-            sed -i "s|^KSU_VERSION_API := .*|KSU_VERSION_API := $ESC_KSU_VERSION_TAG|" kernel/Makefile
+          # 预估版本号（只拉了一层历史时计数为 1，先补全历史）；编译后以内核实际打印的版本号为准
+          if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+            git fetch -q --unshallow 2>/dev/null || echo "::warning::补全 KernelSU 提交历史失败，预估版本号可能不准"
           fi
-
-          KSU_VERSION=$(expr $(git rev-list --count HEAD 2>/dev/null || echo 13000) + 37185)
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+          if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" || "$MANAGER_REPO" == "Baka-SU/BakaSU" ]]; then
+            KSU_VERSION=$((30000 + COMMIT_COUNT + 700))
+          else
+            KSU_VERSION=$((40000 + COMMIT_COUNT - 2815))
+          fi
+          echo "预估版本号: $KSU_VERSION (提交数 $COMMIT_COUNT)"
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
           echo "::group::最终 Makefile 中版本信息及部分调试结果预览"
@@ -1041,6 +1054,9 @@ jobs:
 
           # SukiSU Ultra配置
           echo "CONFIG_KSU=y" >> "$CONFIG_FILE"
+          if [ -n "${KSU_NAME_FORMAT:-}" ]; then
+            echo "CONFIG_KSU_FULL_NAME_FORMAT=\"${KSU_NAME_FORMAT}\"" >> "$CONFIG_FILE"
+          fi
 
           # KPM配置
           if [ "${{ github.event.inputs.KPM }}" = "KPM" ] || [ "${{ github.event.inputs.KPM }}" = "N/A" ]; then
@@ -1326,19 +1342,39 @@ jobs:
           make O=out "${MAKE_ARGS[@]}" olddefconfig
           grep '^CONFIG_SECCOMP=' out/.config || true
           grep '^CONFIG_SECCOMP_FILTER=' out/.config || true
-          make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}"
+          set -o pipefail
+          make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
           ccache -s
 
       - name: Fallback to Build Kernel
         if: ${{ github.event.inputs.FAST_BUILD == 'false' || steps.fast_build.outputs.fallback == 'true' }}
         run: |
           cd kernel_workspace
+          set -o pipefail
           if [ -f ./kernel_platform/build_with_bazel.py ]; then
             ./kernel_platform/oplus/bazel/oplus_modules_variant.sh ${{ env.CPUD }} ${{ env.BUILD_METHOD }}
-            ./kernel_platform/build_with_bazel.py -t ${{ env.CPUD }} ${{ env.BUILD_METHOD }}
+            ./kernel_platform/build_with_bazel.py -t ${{ env.CPUD }} ${{ env.BUILD_METHOD }} 2>&1 | tee -a "$GITHUB_WORKSPACE/build.log"
           else
             LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ env.CPUD }} ${{ env.BUILD_METHOD }}
+            ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ env.CPUD }} ${{ env.BUILD_METHOD }} 2>&1 | tee -a "$GITHUB_WORKSPACE/build.log"
+          fi
+
+      - name: Detect KSU Version
+        run: |
+          # ReSukiSU 打印 "-- ReSukiSU version code: N"，SukiSU-Ultra 打印 "-- SukiSU-Ultra version: N [...]"
+          LOG="$GITHUB_WORKSPACE/build.log"
+          CODE=$(grep -aoE -- '-- [A-Za-z-]+ version( code)?: [0-9]+' "$LOG" 2>/dev/null | tail -n1 | grep -oE '[0-9]+$' || true)
+          NAME=$(grep -aoE -- '-- [A-Za-z-]+ version name: .*' "$LOG" 2>/dev/null | tail -n1 | sed 's/.*version name: //' || true)
+          [[ -z "$NAME" ]] && NAME=$(grep -aoE -- '-- [A-Za-z-]+ version: [0-9]+ \[[^]]*\]' "$LOG" 2>/dev/null | tail -n1 | sed -E 's/.*\[(.*)\]/\1/' || true)
+          if [[ -n "$CODE" ]]; then
+            echo "✅ 内核实际版本号: $CODE${NAME:+ ($NAME)}"
+            echo "KSUVER=$CODE" >> "$GITHUB_ENV"
+            if [[ "$CODE" != "$KSUVER" ]]; then echo "预估值 $KSUVER 已更正为 $CODE"; fi
+          else
+            echo "::warning title=KSU Version::未能从编译日志读取版本号，刷机包名使用预估值 $KSUVER"
+          fi
+          if [[ "$NAME" == *-dirty* ]]; then
+            echo "::warning title=KSU Version::版本名带有 -dirty：$NAME"
           fi
 
       - name: Make AnyKernel3
