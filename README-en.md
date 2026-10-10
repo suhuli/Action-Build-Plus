@@ -15,6 +15,9 @@ GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel
 | Build | Fast build (make + ccache), falls back to the official script |
 | ReSukiSU | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3) (pinned; manager APK from the same release) |
 | SUSFS | v2.3.0 (`gki-android12-5.10` @ `9892175b`) |
+| AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) @ `0fc75698` (pinned) |
+| Baseband-guard | `a54e0dc6` (pinned) |
+| Manifest | [`manifests/oneplus_ace_race_t.xml`](manifests/oneplus_ace_race_t.xml), no external manifest repo |
 
 Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), trimmed to this single device with sensible defaults.
 
@@ -22,7 +25,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 
 1. Go to **Actions → Build OnePlus Ace Race T Kernel → Run workflow**.
 2. The defaults are the recommended combination; just click **Run workflow**.
-3. After ~25 minutes the build is published to [Releases](https://github.com/suhuli/Action-Build-Plus/releases) with the flashable zip, matching manager APK and SHA-256.
+3. After ~15–20 minutes the build is published to [Releases](https://github.com/suhuli/Action-Build-Plus/releases) with the flashable zip, matching manager APK and SHA-256.
 4. Flash the zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
 
 > [!CAUTION]
@@ -37,23 +40,22 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 | `SUSFS_META` | empty | Empty = pinned, tested SUSFS; commit hash or step count = roll back; `-1` = disable SUSFS |
 | `BUILD_TIME` | `F` | Value of `uname -v`; `F` = actual build time |
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
-| `ZRAM` | `0/lz4kd/8589934592` | `on/algorithm/size`; not recommended on 5.10 |
 | `LSM_BBG` | on | Baseband-guard partition write protection |
 | `CCM` | on | BBR + BBRv3 congestion control + ECN (default algorithm unchanged) |
 | `RELEASE` | on | Publish a GitHub Release after a successful build |
 | `UNICODE_BYPASS` | on | Fix for invisible-Unicode path bypass |
 
-See the Chinese README for the full list. The version code in the zip name is read from the build log and matches what the manager shows.
+Options that had no effect on this device (ZRAM, NETFILTER, HMBIRD, dynamic manifest, SUSFS module bundling) were removed. See the Chinese README for the full list. The version code in the zip name is read from the build log and matches what the manager shows.
 
 Builds fail if any part of the SUSFS, Unicode or BBRv3 patches does not apply.
 
 ## Maintenance
 
-[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU or SUSFS has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Run **Workflow and Cache Cleanup** to wipe caches manually.
+[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU, SUSFS, AnyKernel3 or Baseband-guard has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Run **Workflow and Cache Cleanup** to wipe caches manually.
 
 ## Credits
 
-[Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) · [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU) · [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) · [AnyKernel3](https://github.com/osm0sis/AnyKernel3) · [Baseband-guard](https://github.com/vc-teahouse/Baseband-guard) · ZRAM module by [@FURLC](https://github.com/FURLC)
+[Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) · [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU) · [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) · [AnyKernel3](https://github.com/osm0sis/AnyKernel3) · [Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
 
 ## License
 

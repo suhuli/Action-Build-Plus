@@ -25,12 +25,17 @@ jobs:
           SUSFS_PROJECT: simonpunk%2Fsusfs4ksu
           SUSFS_BRANCH: gki-android12-5.10
           LABEL: upstream-update
+          # 看过但暂不跟进的上游提交（空格分隔），最新提交是其中之一时不提醒
+          REVIEWED: >-
+            47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7
         run: |
           set -euo pipefail
           WF=".github/workflows/Build Kernel OnePlus.yml"
           CUR_TAG=$(grep -oP 'RESUKISU_TAG="\K[^"]+' "$WF")
           CUR_SUSFS=$(grep -oP 'STABLE_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
-          echo "当前固定: ReSukiSU $CUR_TAG, SUSFS ${CUR_SUSFS::8}"
+          CUR_AK3=$(grep -oP '^ +AK3_COMMIT: \K[0-9a-f]{40}' "$WF")
+          CUR_BBG=$(grep -oP '^ +BBG_COMMIT: \K[0-9a-f]{40}' "$WF")
+          echo "当前固定: ReSukiSU $CUR_TAG, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}"
 
           BODY=""
           # ReSukiSU：最新发布（含预发布，跳过草稿）
@@ -55,6 +60,20 @@ jobs:
             BODY+="${COMMITS}"$'\n\n'
           fi
 
+          # AnyKernel3 / Baseband-guard：默认分支最新提交
+          check_github() {  # 名称 仓库 当前固定提交
+            local name=$1 repo=$2 cur=$3 head commits
+            head=$(gh api "repos/${repo}/commits?per_page=1" --jq '.[0].sha')
+            [[ "$head" == "$cur" || " $REVIEWED " == *" $head "* ]] && return 0
+            commits=$(gh api "repos/${repo}/compare/${cur}...${head}" \
+              --jq '.commits | reverse | .[:20][] | "- `\(.sha[:7])` \(.commit.message | split("\n")[0])"')
+            BODY+="### ${name}"$'\n'
+            BODY+="当前固定 \`${cur::8}\` → 最新 [\`${head::8}\`](https://github.com/${repo}/commits)"$'\n\n'
+            BODY+="${commits}"$'\n\n'
+          }
+          check_github AnyKernel3 Numbersf/AnyKernel3 "$CUR_AK3"
+          check_github Baseband-guard vc-teahouse/Baseband-guard "$CUR_BBG"
+
           ISSUE=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
           if [[ -z "$BODY" ]]; then
             echo "已是最新"
@@ -62,7 +81,7 @@ jobs:
             exit 0
           fi
 
-          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`STABLE_SUSFS_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
           echo "$BODY"
           if [[ -z "$ISSUE" ]]; then
             gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true

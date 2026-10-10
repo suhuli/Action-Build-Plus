@@ -68,6 +68,19 @@ def fix_vma_pad_start(root: Path) -> None:
     print("task_mmu.c: 已补充 VMA_PAD_START 回退定义")
 
 
+def fix_show_pad(root: Path) -> None:
+    # 部分 SUSFS 版本的 show_map_vma() 新增代码会 goto show_pad，而该标签来自本机内核没有的
+    # pgsize 迁移补丁。没有这个标签时改为 return 0（等价于没有填充页），否则编译失败。
+    p = root / "fs/proc/task_mmu.c"
+    if not p.exists():
+        return
+    s = p.read_text()
+    if not re.search(r"goto\s+show_pad;", s) or re.search(r"^show_pad:", s, re.M):
+        return
+    p.write_text(re.sub(r"goto\s+show_pad;", "return 0;", s))
+    print("task_mmu.c: 内核没有 show_pad 标签，已改为 return 0")
+
+
 def main() -> None:
     if len(sys.argv) != 3 or sys.argv[1] not in ("pre", "post"):
         sys.exit(__doc__)
@@ -76,6 +89,7 @@ def main() -> None:
         fix_fdinfo(root)
     else:
         fix_vma_pad_start(root)
+        fix_show_pad(root)
 
 
 if __name__ == "__main__":
