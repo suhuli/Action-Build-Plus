@@ -1621,7 +1621,7 @@ jobs:
       - name: Pack AnyKernel3 Zip
         id: pack_ak3
         run: |
-          ZIP_NAME="AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}.zip"
+          ZIP_NAME="AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}.zip"
           cd ./AnyKernel3
           zip -r "../${ZIP_NAME}" ./*
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
@@ -1629,7 +1629,7 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
         with:
-          name: AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
+          name: AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}
           path: ./${{ steps.pack_ak3.outputs.zip_name }}
 
       - name: Extract and Process ZRAM Module
