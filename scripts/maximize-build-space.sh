@@ -27,6 +27,7 @@ make_pv() { # 用法: make_pv <挂载点> <保留MB> <镜像路径>
     echo "$1 剩余空间不足，跳过" >&2
     return 0
   fi
+  sudo touch "$3"   # fallocate -z 不会创建文件
   sudo fallocate -z -l "$size" "$3"
   sudo losetup --find --show "$3"
 }
