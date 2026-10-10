@@ -13,6 +13,8 @@ GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel
 | Kernel | 5.10.110 (GKI, android12-5.10) |
 | Source | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | Build | Fast build (make + ccache), falls back to the official script |
+| ReSukiSU | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3) (pinned; manager APK from the same release) |
+| SUSFS | v2.3.0 (`gki-android12-5.10` @ `9892175b`) |
 
 Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), trimmed to this single device with sensible defaults.
 
@@ -20,8 +22,8 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 
 1. Go to **Actions → Build OnePlus Ace Race T Kernel → Run workflow**.
 2. The defaults are the recommended combination; just click **Run workflow**.
-3. After ~25 minutes, download `AnyKernel3_...` from **Artifacts** at the bottom of the run page.
-4. Unzip once and flash the inner zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
+3. After ~25 minutes the build is published to [Releases](https://github.com/suhuli/Action-Build-Plus/releases) with the flashable zip, matching manager APK and SHA-256.
+4. Flash the zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
 
 > [!CAUTION]
 > Back up your current `boot` partition before flashing.
@@ -37,14 +39,17 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
 | `ZRAM` | `0/lz4kd/8589934592` | `on/algorithm/size`; not recommended on 5.10 |
 | `LSM_BBG` | on | Baseband-guard partition write protection |
-| `CCM` | on | BBR congestion control + ECN |
+| `CCM` | on | BBR + BBRv3 congestion control + ECN (default algorithm unchanged) |
+| `RELEASE` | on | Publish a GitHub Release after a successful build |
 | `UNICODE_BYPASS` | on | Fix for invisible-Unicode path bypass |
 
 See the Chinese README for the full list. The version code in the zip name is read from the build log and matches what the manager shows.
 
-## Cache
+Builds fail if any part of the SUSFS, Unicode or BBRv3 patches does not apply.
 
-ccache entries are evicted by GitHub after 7 days without use, so the first build after a break is slower. Run **Workflow and Cache Cleanup** to wipe caches manually.
+## Maintenance
+
+[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU or SUSFS has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Run **Workflow and Cache Cleanup** to wipe caches manually.
 
 ## Credits
 

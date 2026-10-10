@@ -13,6 +13,9 @@
 | 内核 | 5.10.110（GKI，android12-5.10） |
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
+| ReSukiSU | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
+| SUSFS | v2.3.0（`gki-android12-5.10` 分支 `9892175b`） |
+| 额外配置 | `CONFIG_USER_NS=y`（部分容器、沙盒类应用需要） |
 
 本项目基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 精简而来，只保留这一台机型，默认值按日常使用组合设置，避免误操作。
 
@@ -20,8 +23,10 @@
 
 1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
 2. 默认参数就是推荐组合，直接点 **Run workflow** 即可；需要时再调整。
-3. 等待约 25 分钟（缓存命中时更快），在运行页面底部 **Artifacts** 下载 `AnyKernel3_...` 压缩包。
-4. 解压一次得到内层刷机包，用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入，或在 Recovery 中刷入。
+3. 等待约 25 分钟（缓存命中时更快）。构建成功后会自动发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、配套管理器 APK 和 SHA-256。
+4. 用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入刷机包，或在 Recovery 中刷入。
+
+运行页面底部的 **Artifacts** 里也有同一个刷机包（外面多套了一层 zip，需要先解压一次）。
 
 > [!CAUTION]
 > 刷内核有风险。刷之前请备份当前 `boot` 分区，变砖时可用它恢复。
@@ -42,12 +47,13 @@
 | 内核等级 `SUBLEVEL` | 空 | 伪装内核小版本号，系统更新后内核源码未同步导致无法开机时使用 |
 | 极速构建 `FAST_BUILD` | 开 | MTK 机型必须开启 |
 | `LSM_BBG` | 开 | Baseband-guard，防止基带/关键分区被恶意改写 |
-| `CCM` | 开 | BBR 拥塞控制 + ECN |
+| `CCM` | 开 | BBR、BBRv3 拥塞控制 + ECN（只编进内核，默认算法不变，需要时用 sysctl 或调度类模块切换） |
 | `NETFILTER` | 开 | 网络功能扩展，MTK 机型上不生效 |
 | `UNICODE_BYPASS` | 开 | 修复用 Unicode 不可见字符绕过路径检测的漏洞 |
 | `SCHED_HMBIRD` | 关 | 风驰调度，本机型不支持 |
 | `DROID_SPACES` / `RE_KERNEL` | 关 | Droid Spaces 容器支持 / Re:Kernel 墓碑支持 |
 | `SUSFS_DEV` | 关 | 使用 SUSFS 开发分支，仅测试用 |
+| `RELEASE` | 开 | 构建成功后自动发布 Release |
 | `SPACE_NOCLEAN` / `BUILD_NOCCACHE` | 关 | 跳过磁盘清理 / 不使用 ccache |
 
 ### 自定义版本标识
@@ -61,9 +67,20 @@
 
 刷机包名中的版本号直接取自编译日志，和管理器里显示的一致。
 
+## 补丁检查
+
+SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直接失败并打印未打上的部分，不会产出缺功能的内核。本机内核与 SUSFS 补丁的兼容修复在 [`scripts/susfs_fixups.py`](scripts/susfs_fixups.py)。
+
+## 自动维护
+
+[Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
+
+- **检查上游更新**：ReSukiSU 发布新版本或 SUSFS 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
+- **ccache 保活**：每天访问一次编译缓存，避免被 GitHub 删除。
+
 ## 缓存
 
-极速构建会用 ccache 缓存编译结果。GitHub 会删除 7 天没被访问的缓存，所以隔一段时间再编译会变慢，这是正常的。
+极速构建会用 ccache 缓存编译结果。每次构建成功后保存新缓存并删除旧缓存，只保留最新一份。
 
 需要清理缓存时，运行 **Workflow and Cache Cleanup** 工作流并勾选删除缓存。
 

@@ -1,0 +1,103 @@
+name: Daily Maintenance
+
+# 每天北京时间 09:17 运行：检查上游新版本、保持 ccache 缓存不过期
+on:
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+jobs:
+  check-updates:
+    name: 检查上游更新
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compare with pinned versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESUKISU_REPO: Baka-SU/BakaSU
+          SUSFS_PROJECT: simonpunk%2Fsusfs4ksu
+          SUSFS_BRANCH: gki-android12-5.10
+          LABEL: upstream-update
+        run: |
+          set -euo pipefail
+          WF=".github/workflows/Build Kernel OnePlus.yml"
+          CUR_TAG=$(grep -oP 'RESUKISU_TAG="\K[^"]+' "$WF")
+          CUR_SUSFS=$(grep -oP 'STABLE_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
+          echo "当前固定: ReSukiSU $CUR_TAG, SUSFS ${CUR_SUSFS::8}"
+
+          BODY=""
+          # ReSukiSU：最新发布（含预发布，跳过草稿）
+          read -r NEW_TAG NEW_PRE NEW_URL < <(gh api "repos/${RESUKISU_REPO}/releases?per_page=10" \
+            --jq '[.[] | select(.draft | not)][0] | "\(.tag_name) \(.prerelease) \(.html_url)"')
+          if [[ "$NEW_TAG" != "$CUR_TAG" ]]; then
+            KIND=$([[ "$NEW_PRE" == true ]] && echo "预发布" || echo "正式版")
+            BODY+="### ReSukiSU ${NEW_TAG}（${KIND}）"$'\n'
+            BODY+="当前固定 \`${CUR_TAG}\` → 最新 [\`${NEW_TAG}\`](${NEW_URL})"$'\n\n'
+          fi
+
+          # SUSFS：分支最新提交
+          API="https://gitlab.com/api/v4/projects/${SUSFS_PROJECT}/repository"
+          HEAD=$(curl -fsSL "${API}/branches/${SUSFS_BRANCH}" | jq -r '.commit.id')
+          if [[ "$HEAD" != "$CUR_SUSFS" ]]; then
+            VER=$(curl -fsSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/${HEAD}/kernel_patches/include/linux/susfs.h" \
+              | grep -oP 'SUSFS_VERSION "\K[^"]+' || echo "?")
+            COMMITS=$(curl -fsSL "${API}/compare?from=${CUR_SUSFS}&to=${HEAD}" \
+              | jq -r '.commits | reverse | .[:20][] | "- `\(.short_id)` \(.title)"')
+            BODY+="### SUSFS ${VER}（${SUSFS_BRANCH}）"$'\n'
+            BODY+="当前固定 \`${CUR_SUSFS::8}\` → 最新 [\`${HEAD::8}\`](https://gitlab.com/simonpunk/susfs4ksu/-/commits/${SUSFS_BRANCH})"$'\n\n'
+            BODY+="${COMMITS}"$'\n\n'
+          fi
+
+          ISSUE=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [[ -z "$BODY" ]]; then
+            echo "已是最新"
+            [[ -n "$ISSUE" ]] && gh issue close "$ISSUE" --comment "固定版本已更新到最新，自动关闭。"
+            exit 0
+          fi
+
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`STABLE_SUSFS_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          echo "$BODY"
+          if [[ -z "$ISSUE" ]]; then
+            gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true
+            gh issue create --title "上游有新版本" --label "$LABEL" --body "$BODY"
+          elif [[ "$(gh issue view "$ISSUE" --json body --jq .body)" != "$BODY" ]]; then
+            gh issue edit "$ISSUE" --body "$BODY"
+            gh issue comment "$ISSUE" --body "上游又有更新，已刷新上面的列表。"
+          fi
+
+  ccache-keepalive:
+    name: ccache 保活
+    runs-on: ubuntu-latest
+    steps:
+      # GitHub 会删除 7 天没被访问的缓存；每天恢复一次最新的 ccache，让它保持“最近使用”
+      # path 必须与编译工作流中的 CCACHE_DIR 完全一致，否则匹配不到
+      - name: Touch latest ccache
+        id: restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /home/runner/.ccache_oneplus_ace_race_t
+          key: ccache-keepalive-never-matches
+          restore-keys: |
+            ccache-Linux-main-oneplus_ace_race_t-gki-alpha-16.2
+
+      - name: Report
+        run: |
+          if [[ -n "${{ steps.restore.outputs.cache-matched-key }}" ]]; then
+            echo "已访问缓存: ${{ steps.restore.outputs.cache-matched-key }}"
+            du -sh /home/runner/.ccache_oneplus_ace_race_t
+          else
+            echo "::notice::没有找到 ccache 缓存（还没编译过，或已被清理）"
+          fi
+
+      # 公开仓库 60 天没有提交时，GitHub 会停用定时工作流；定期重新启用以重置计时
+      - name: Keep schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/maintenance.yml/enable"

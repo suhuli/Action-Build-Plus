@@ -90,7 +90,7 @@ on:
         default: true
       CCM:
         type: boolean
-        description: "是否启用网络拥塞控制与管理机制(BBR+ECN)？"
+        description: "是否启用网络拥塞控制与管理机制(BBRv1+BBRv3+ECN)？"
         required: true
         default: true
       UNICODE_BYPASS:
@@ -123,11 +123,20 @@ on:
         description: "是否停用空间清扫？"
         required: true
         default: false
+      RELEASE:
+        type: boolean
+        description: "是否发布到 Release？"
+        required: true
+        default: true
       BUILD_NOCCACHE:
         type: boolean
         description: "是否停用此次Ccache？"
         required: true
         default: false
+
+permissions:
+  contents: write
+  actions: write
 
 jobs:
   build:
@@ -144,14 +153,17 @@ jobs:
 
       - name: Maximize Build Space
         if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 2048
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+        env:
+          ROOT_RESERVE_MB: '8192'
+          TEMP_RESERVE_MB: '2048'
+        run: |
+          cp scripts/maximize-build-space.sh /tmp/
+          cd / && bash /tmp/maximize-build-space.sh
+
+      # 扩容后工作目录被新卷覆盖，重新检出仓库（补丁和脚本都在仓库里）
+      - name: Checkout After Resize
+        if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
+        uses: actions/checkout@v6
 
       - name: Extract Manifest Info
         id: extract_info
@@ -406,17 +418,20 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Install Dependencies + APTC
-        uses: awalsh128/cache-apt-pkgs-action@latest 
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with: 
           packages: python3 git curl ccache libelf-dev build-essential flex bison libssl-dev libncurses-dev liblz4-tool zlib1g-dev libxml2-utils rsync unzip gawk dos2unix kmod libdw-dev elfutils
           execute_install_scripts: true
 
+      # 缓存写入后不能覆盖，所以每次以运行 ID 结尾保存新缓存，恢复时取同前缀中最新的一份
       - name: Restore Ccache
         if: ${{ github.event.inputs.BUILD_NOCCACHE == 'false' }}
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.event.inputs.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-16.2
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.event.inputs.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-16.2-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.event.inputs.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-16.2
 
       - name: Initialize Ccache
         if: ${{ github.event.inputs.BUILD_NOCCACHE == 'false' }}
@@ -650,13 +665,13 @@ jobs:
             RESUKISU)
               BRANCH="main"
               ARTIFACT="Manager-release"
-              REPO="ReSukiSU/ReSukiSU"
+              REPO="Baka-SU/BakaSU"
               DEFAULT_KSU_BRANCH="main"
               ;;
             RESUKISU_SPOOF)
               BRANCH="main"
               ARTIFACT="Spoofed-Manager-release"
-              REPO="ReSukiSU/ReSukiSU"
+              REPO="Baka-SU/BakaSU"
               DEFAULT_KSU_BRANCH="main"
               ;;
             MD3)
@@ -697,7 +712,10 @@ jobs:
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
           DEFAULT_KSU_BRANCH="${{ steps.manager.outputs.default_ksu_branch }}"
           KSU_META="${{ github.event.inputs.KSU_META }}"
-          STABLE_RESUKISU_COMMIT="930f61a654f35b98577e5da781fb30f9a1bc678b"
+          # ReSukiSU 固定版本（更新时同时修改 tag 和对应提交）
+          RESUKISU_TAG="v4.2.0-rc3"
+          RESUKISU_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"
+          USER_BRANCH="${KSU_META%%/*}"
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -711,20 +729,52 @@ jobs:
           # 自定义标识会写进内核版本名，只保留安全字符
           CUSTOM_TAG=$(printf '%s' "$CUSTOM_TAG" | tr -cd 'A-Za-z0-9._+~-')
 
-          if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" && "$BRANCH_NAME" == "builtin" ]]; then
+          IS_RESUKISU=false
+          [[ "$MANAGER_REPO" == "Baka-SU/BakaSU" ]] && IS_RESUKISU=true
+          echo "IS_RESUKISU=$IS_RESUKISU" >> "$GITHUB_ENV"
+
+          if [[ "$IS_RESUKISU" == true && "$BRANCH_NAME" == "builtin" ]]; then
             echo "ReSukiSU 不存在 builtin 分支，自动回退到 $DEFAULT_KSU_BRANCH"
             BRANCH_NAME="$DEFAULT_KSU_BRANCH"
-          fi
-
-          if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" && -z "$MANUAL_HASH" ]]; then
-            MANUAL_HASH="$STABLE_RESUKISU_COMMIT"
-            echo "ReSukiSU 自动固定到 #3 已验证提交: $MANUAL_HASH"
+            USER_BRANCH=""
           fi
 
           echo "分支名: $BRANCH_NAME"
           [[ -n "$CUSTOM_TAG" ]] && echo "自定义版本标识: $CUSTOM_TAG" || echo "自定义版本标识: 未启用"
           [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
 
+          if [[ "$IS_RESUKISU" == true ]]; then
+            # 默认用固定的 release；填了分支或提交哈希时用指定的版本
+            EXPECT_COMMIT=""
+            if [[ -n "$MANUAL_HASH" ]]; then
+              KSU_REF="$MANUAL_HASH"
+            elif [[ -n "$USER_BRANCH" ]]; then
+              KSU_REF="$USER_BRANCH"
+            else
+              KSU_REF="$RESUKISU_TAG"
+              EXPECT_COMMIT="$RESUKISU_COMMIT"
+            fi
+            echo "ReSukiSU 版本: $KSU_REF"
+            # 完整克隆：内核版本号由提交数计算，版本名取自最近的 tag
+            git clone -q "https://github.com/${MANAGER_REPO}.git" KernelSU
+            git -C KernelSU -c advice.detachedHead=false checkout -q "$KSU_REF"
+            ACTUAL_COMMIT=$(git -C KernelSU rev-parse HEAD)
+            if [[ -n "$EXPECT_COMMIT" && "$ACTUAL_COMMIT" != "$EXPECT_COMMIT" ]]; then
+              echo "::error title=ReSukiSU::$KSU_REF 指向 $ACTUAL_COMMIT，与固定的 $EXPECT_COMMIT 不一致"
+              exit 1
+            fi
+            # 等同于官方 setup.sh 的接入步骤（不用它是因为它会 pull 并切换分支）
+            DRIVER_DIR="common/drivers"; [[ -d "$DRIVER_DIR" ]] || DRIVER_DIR="drivers"
+            ln -sfn "$(realpath --relative-to="$DRIVER_DIR" KernelSU/kernel)" "$DRIVER_DIR/kernelsu"
+            grep -q "kernelsu" "$DRIVER_DIR/Makefile" || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> "$DRIVER_DIR/Makefile"
+            grep -q 'source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig" || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig"
+            echo "已接入: $(readlink "$DRIVER_DIR/kernelsu") @ $(git -C KernelSU describe --tags --always)"
+            echo "RESUKISU_REF=$KSU_REF" >> "$GITHUB_ENV"
+            [[ -n "$EXPECT_COMMIT" ]] && echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
+            cd ./KernelSU
+            GIT_HASH=$(git rev-parse --short=8 HEAD)
+            SHORT_HASH="$GIT_HASH"
+          else
           KSU_SETUP_REF="$MANAGER_BRANCH"
           [[ -n "$MANUAL_HASH" ]] && KSU_SETUP_REF="$MANUAL_HASH"
           curl -LSs "https://raw.githubusercontent.com/${MANAGER_REPO}/${KSU_SETUP_REF}/kernel/setup.sh" | bash -s "$BRANCH_NAME"
@@ -735,6 +785,7 @@ jobs:
             git fetch origin "$MANUAL_HASH" --depth=1
             git checkout --detach FETCH_HEAD
             SHORT_HASH=$(git rev-parse --short HEAD)
+          fi
           fi
 
           KSU_VERSION_TAG=$(git describe --abbrev=0 --tags 2>/dev/null || true)
@@ -817,26 +868,31 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            STABLE_SUSFS_COMMIT="be08face56c347e7ba9c4fb420c2463598a14f5d"
-            if [[ -z "$SUSFS_META" ]]; then
+            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支）
+            STABLE_SUSFS_COMMIT="9892175b4acec7ee844e113b8d02c0f4d12cdfac"
+            if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_META="$STABLE_SUSFS_COMMIT"
-              echo "SUSFS 自动固定到 #3 已验证提交: $SUSFS_META"
+              echo "SUSFS 固定版本: $SUSFS_META"
             fi
             git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.event.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
             cd susfs4ksu
-            if [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
+            if [[ -z "$SUSFS_META" ]]; then
+              echo "SUSFS 使用开发分支最新提交"
+            elif [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
               git checkout HEAD~$SUSFS_META
             else
-              git fetch origin "$SUSFS_META" --depth=1
-              git checkout --detach FETCH_HEAD
+              git -c advice.detachedHead=false checkout "$SUSFS_META"
             fi
+            SUSFS_VER=$(grep -o 'SUSFS_VERSION "[^"]*"' kernel_patches/include/linux/susfs.h | cut -d'"' -f2)
+            echo "SUSFS: $(git log -1 --format='%h %s') ($SUSFS_VER)"
+            echo "SUSFS_VER=$SUSFS_VER" >> "$GITHUB_ENV"
+            echo "SUSFS_SHA=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
             cd ..
           fi
           if [ "${{ github.event.inputs.RE_KERNEL }}" = "true" ]; then
             git clone https://github.com/Sakion-Team/Re-Kernel.git
           fi
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
-          git clone https://github.com/Numbersf/Action-Build.git
           cd kernel_platform
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             echo "正在拉取susfs补丁"
@@ -859,7 +915,7 @@ jobs:
 
           if [ "$GKI_V" == "android13-5.15" ] && [ "$SUBLEVEL" -lt 123 ]; then
             echo "修复内核版本为5.15.0~5.15.123仅支持旧版C库造成的一些bug"
-            cp ../../Action-Build/patches/fix_5.15.legacy ./fix_5.15.legacy.patch
+            cp "$GITHUB_WORKSPACE/patches/fix_5.15.legacy" ./fix_5.15.legacy.patch
             patch -p1 < fix_5.15.legacy.patch
             echo "fix_5.15_patch完成"
           fi
@@ -909,7 +965,13 @@ jobs:
             fi
 
             echo "正在打susfs补丁"
-            patch -p1 < 50_add_susfs_in_gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" pre .
+            if ! patch -p1 --no-backup-if-mismatch < 50_add_susfs_in_gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch; then
+              echo "::error title=SUSFS::SUSFS 补丁有部分没有打上，继续编译会缺少隐藏功能"
+              find . -name '*.rej' -print -exec cat {} \;
+              exit 1
+            fi
+            python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" post .
             echo "susfs_patch完成"
 
             # Revert
@@ -931,7 +993,7 @@ jobs:
       - name: Apply Convert HMBIRD_OGKI to HMBIRD_GKI
         if: ${{ fromJSON(env.KV1) >= 6 && fromJSON(env.KV2) >= 66 && github.event.inputs.SCHED_HMBIRD == 'false' }}
         run: |
-          PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/Action-Build/patches"
+          PATCH_DIR="${GITHUB_WORKSPACE}/patches"
           cd kernel_workspace/kernel_platform/common
           for p in ./kernel/sched/hmbird* ./vendor/oplus/kernel/cpu/sched_ext/hmbird*; do
             [ -d "$p" ] && {
@@ -947,13 +1009,36 @@ jobs:
       - name: Apply UNICODE_BYPASS
         if: ${{ github.event.inputs.UNICODE_BYPASS == 'true' }}
         run: |
-          PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/Action-Build/patches"
+          PATCH_DIR="${GITHUB_WORKSPACE}/patches"
           cd kernel_workspace/kernel_platform/common
-          if [ "$KV1" -lt 6 ]; then
-            patch -p1 --forward < "${PATCH_DIR}/unicode_bypass_fix_6.1-.patch" || true
-          else
-            patch -p1 --forward < "${PATCH_DIR}/unicode_bypass_fix_6.1+.patch" || true
+          if [ "$KV1" -lt 6 ]; then P="${PATCH_DIR}/unicode_bypass_fix_6.1-.patch"; else P="${PATCH_DIR}/unicode_bypass_fix_6.1+.patch"; fi
+          if patch -p1 -R --dry-run -s -f < "$P" >/dev/null 2>&1; then
+            echo "Unicode 修复已存在，跳过"
+          elif ! patch -p1 --no-backup-if-mismatch < "$P"; then
+            echo "::error title=UNICODE_BYPASS::Unicode 修复补丁没有完整打上"
+            find . -name '*.rej' -print -exec cat {} \;
+            exit 1
           fi
+
+      - name: Apply BBRv3
+        if: ${{ github.event.inputs.CCM == 'true' && env.KANDROID_VERSION == 'android12' && env.KERNEL_VERSION == '5.10' }}
+        run: |
+          PATCH_DIR="${GITHUB_WORKSPACE}/patches/bbrv3"
+          cd kernel_workspace/kernel_platform/common
+          apply() {
+            if ! patch -p1 --no-backup-if-mismatch < "$1"; then
+              echo "::error title=BBRv3::$(basename "$1") 没有完整打上"
+              find . -name '*.rej' -print -exec cat {} \;
+              exit 1
+            fi
+          }
+          apply "${PATCH_DIR}/0001-net-tcp-backport-BBRv3-to-android12-5.10.patch"
+          # BBRv3 的 sysctl 需要 proc_dou8vec_minmax（5.13 引入），旧内核补上
+          if ! grep -qF 'int proc_dou8vec_minmax(' ./include/linux/sysctl.h; then
+            apply "${PATCH_DIR}/sysctl_add_proc_dou8vec_minmax.patch"
+            apply "${PATCH_DIR}/sysctl_fix_data-races_in_proc_dou8vec_minmax.patch"
+          fi
+          echo "BBRV3_APPLIED=true" >> "$GITHUB_ENV"
 
       - name: Apply RE_KERNEL
         if: ${{ github.event.inputs.RE_KERNEL == 'true' }}
@@ -1054,6 +1139,8 @@ jobs:
 
           # SukiSU Ultra配置
           echo "CONFIG_KSU=y" >> "$CONFIG_FILE"
+          # 用户命名空间：部分容器和沙盒类应用需要
+          echo "CONFIG_USER_NS=y" >> "$CONFIG_FILE"
           if [ -n "${KSU_NAME_FORMAT:-}" ]; then
             echo "CONFIG_KSU_FULL_NAME_FORMAT=\"${KSU_NAME_FORMAT}\"" >> "$CONFIG_FILE"
           fi
@@ -1090,6 +1177,9 @@ jobs:
           if [ "${{ github.event.inputs.CCM }}" = "true" ]; then
             echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_BBR=y" >> "$CONFIG_FILE"
+            if [ "${BBRV3_APPLIED:-}" = "true" ]; then
+              echo "CONFIG_TCP_CONG_BBR3=y" >> "$CONFIG_FILE"
+            fi
             echo "CONFIG_NET_SCH_FQ=y" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_BIC=n" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_WESTWOOD=n" >> "$CONFIG_FILE"
@@ -1176,7 +1266,7 @@ jobs:
       - name: Fix IPv6_NAT Error
         if: ${{ github.event.inputs.NETFILTER == 'true' }}
         run: |
-          PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/Action-Build/patches"
+          PATCH_DIR="${GITHUB_WORKSPACE}/patches"
           cd kernel_workspace/kernel_platform/common
           if [[ "${CPU}" == sm* ]]; then
             echo "修复启用IPv6 NAT后可能出现的设备误报…"
@@ -1359,6 +1449,32 @@ jobs:
             ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ env.CPUD }} ${{ env.BUILD_METHOD }} 2>&1 | tee -a "$GITHUB_WORKSPACE/build.log"
           fi
 
+      - name: Save Ccache
+        if: ${{ success() && github.event.inputs.BUILD_NOCCACHE == 'false' }}
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.event.inputs.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-16.2-${{ github.run_id }}
+
+      - name: Prune Old Ccache
+        if: ${{ success() && github.event.inputs.BUILD_NOCCACHE == 'false' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.event.inputs.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-16.2
+        run: |
+          KEEP="${PREFIX}-${{ github.run_id }}"
+          LIST=$(gh api --paginate "repos/${{ github.repository }}/actions/caches?key=${PREFIX}&per_page=100" --jq '.actions_caches[] | [.id, .key] | @tsv')
+          if ! grep -qxF "$KEEP" <<< "$(cut -f2 <<< "$LIST")"; then
+            echo "新缓存未保存成功，保留旧缓存"
+            exit 0
+          fi
+          while IFS=$'\t' read -r id key; do
+            [[ "$key" == "$KEEP" ]] && continue
+            echo "删除旧缓存: $key"
+            gh api -X DELETE "repos/${{ github.repository }}/actions/caches/$id" >/dev/null
+          done <<< "$LIST"
+
       - name: Detect KSU Version
         run: |
           # ReSukiSU 打印 "-- ReSukiSU version code: N"，SukiSU-Ultra 打印 "-- SukiSU-Ultra version: N [...]"
@@ -1369,6 +1485,7 @@ jobs:
           if [[ -n "$CODE" ]]; then
             echo "✅ 内核实际版本号: $CODE${NAME:+ ($NAME)}"
             echo "KSUVER=$CODE" >> "$GITHUB_ENV"
+            [[ -n "$NAME" ]] && echo "KSU_NAME=$NAME" >> "$GITHUB_ENV"
             if [[ "$CODE" != "$KSUVER" ]]; then echo "预估值 $KSUVER 已更正为 $CODE"; fi
           else
             echo "::warning title=KSU Version::未能从编译日志读取版本号，刷机包名使用预估值 $KSUVER"
@@ -1408,8 +1525,12 @@ jobs:
       - name: Apply KPX and Replace Image
         if: ${{ github.event.inputs.KPM != 'N/A' }}
         run: |
+          if [ "$IS_RESUKISU" = "true" ]; then
+            echo "::warning title=KPM::ReSukiSU 不支持 KPM/KPN，已跳过"
+            exit 0
+          fi
           KPM_DIR="${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch/kpm"
-          KPN_DIR="${GITHUB_WORKSPACE}/kernel_workspace/Action-Build/patches"
+          KPN_DIR="${GITHUB_WORKSPACE}/patches"
           OUT_DIR="${GITHUB_WORKSPACE}/kernel_workspace/kernel_platform/out/Final-Image-Find"
           cd "${OUT_DIR}"
           if [ "${{ github.event.inputs.KPM }}" = "KPM" ]; then
@@ -1451,7 +1572,7 @@ jobs:
           wget -O ksu_module_susfs_1.5.2+_Release.zip https://github.com/sidex15/ksu_module_susfs/releases/latest/download/ksu_module_susfs_1.5.2+.zip
           cp ksu_module_susfs_1.5.2+_Release.zip ./AnyKernel3/
 
-      - name: Download Latest SukiSU-Ultra APK from CI
+      - name: Download Manager APK
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1459,6 +1580,18 @@ jobs:
           MANAGER_BRANCH="${{ steps.manager.outputs.manager_branch }}"
           MANAGER_ARTIFACT="${{ steps.manager.outputs.manager_artifact }}"
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
+
+          # ReSukiSU 使用固定 release 时，下载同一 release 的管理器，保证版本一致
+          if [[ -n "${RESUKISU_RELEASE:-}" && "$MANAGER_ARTIFACT" == "Manager-release" ]]; then
+            APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${RESUKISU_RELEASE}" \
+              --jq '.assets[] | select(.name | endswith("-arm64-v8a-release.apk")) | .browser_download_url' | head -n1)
+            if [[ -n "$APK" ]]; then
+              echo "下载 ${RESUKISU_RELEASE} 管理器: $APK"
+              curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
+              exit 0
+            fi
+            echo "::warning title=Manager::${RESUKISU_RELEASE} 没有找到 arm64 管理器，改用 CI 构建"
+          fi
 
           echo "Using branch: $MANAGER_BRANCH"
           echo "Using repo: $MANAGER_REPO"
@@ -1483,12 +1616,12 @@ jobs:
       - name: Set zip Suffix
         id: suffix
         run: |
-          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ github.event.inputs.SCHED_HMBIRD== 'true' && '_HMBIRD' || '' }}${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}" >> $GITHUB_OUTPUT
+          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ env.IS_RESUKISU != 'true' && (github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ github.event.inputs.SCHED_HMBIRD== 'true' && '_HMBIRD' || '' }}${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}" >> $GITHUB_OUTPUT
 
       - name: Pack AnyKernel3 Zip
         id: pack_ak3
         run: |
-          ZIP_NAME="AnyKernel3_SukiSUUltra_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}.zip"
+          ZIP_NAME="AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}.zip"
           cd ./AnyKernel3
           zip -r "../${ZIP_NAME}" ./*
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
@@ -1496,7 +1629,7 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
         with:
-          name: AnyKernel3_SukiSUUltra_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
+          name: AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.TKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
           path: ./${{ steps.pack_ak3.outputs.zip_name }}
 
       - name: Extract and Process ZRAM Module
@@ -1504,7 +1637,7 @@ jobs:
         id: zram_find
         run: |
           set -e
-          ZRAM_ZIP="${GITHUB_WORKSPACE}/kernel_workspace/Action-Build/ZRAM.zip"
+          ZRAM_ZIP="${GITHUB_WORKSPACE}/ZRAM.zip"
 
           if [ ! -f "$ZRAM_ZIP" ]; then
             echo "❌ 未找到 ZRAM.zip: $ZRAM_ZIP"
@@ -1558,6 +1691,45 @@ jobs:
         with:
           name: ZRAM-Module_${{ env.KERNEL_VERSION }}_${{ steps.extract_info.outputs.value }}
           path: ZRAM-Module/*
+
+      - name: Publish Release
+        if: ${{ success() && github.event.inputs.RELEASE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP: ${{ steps.pack_ak3.outputs.zip_name }}
+          INPUT_JSON: ${{ toJSON(github.event.inputs) }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          KSU_LABEL="${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSU-Ultra' }}"
+          TITLE="#${{ github.run_number }} ${KSU_LABEL} ${KSU_NAME:-$KSUVER}"
+          [[ -n "${SUSFS_VER:-}" ]] && TITLE="$TITLE + SUSFS ${SUSFS_VER}"
+          # 不是固定的正式版本时标记为预发布
+          PRE=""
+          if [[ "$IS_RESUKISU" == "true" && -z "${RESUKISU_RELEASE:-}" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
+
+          ASSETS=("$ZIP")
+          for apk in AnyKernel3/*.apk; do [[ -f "$apk" ]] && ASSETS+=("$apk"); done
+          SHA=$(sha256sum "$ZIP" | cut -d' ' -f1)
+
+          {
+            echo "一加 Ace 竞速版（oneplus_ace_race_t）内核，Android 13，Linux ${TKERNEL_VERSION}"
+            echo
+            echo "| 组件 | 版本 |"
+            echo "|---|---|"
+            echo "| ${KSU_LABEL} | ${KSU_NAME:-?}（版本号 ${KSUVER}） |"
+            [[ -n "${SUSFS_VER:-}" ]] && echo "| SUSFS | ${SUSFS_VER}（${SUSFS_SHA}） |"
+            echo "| 工作流 | [${GITHUB_SHA::7}](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) · [运行记录](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo
+            echo "**选项**：$(jq -r 'to_entries | map(select(.value != "" and .value != "false" and .value != "N/A" and (.key | IN("FILE","DYNAMIC_REPO","RELEASE") | not))) | map(if .value == "true" then .key else "\(.key)=\(.value)" end) | join(" · ")' <<< "$INPUT_JSON")"
+            echo
+            echo "**SHA-256**：\`${SHA}\`"
+            echo
+            echo "刷入前请备份 boot 分区。"
+          } > release_notes.md
+          cat release_notes.md
+
+          gh release create "$TAG" "${ASSETS[@]}" --repo "${{ github.repository }}" \
+            --target "$GITHUB_SHA" --title "$TITLE" --notes-file release_notes.md $PRE
 
       - name: Post-build Disk Check
         run: df -h
