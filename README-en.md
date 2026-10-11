@@ -27,7 +27,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 
 1. Go to **Actions → Build OnePlus Ace Race T Kernel → Run workflow**.
 2. The defaults are the recommended combination; just click **Run workflow**.
-3. After ~15–20 minutes the build is published to [Releases](https://github.com/suhuli/Action-Build-Plus/releases) with the flashable zip, matching manager APK and SHA-256.
+3. After ~15–20 minutes download the flashable zip (with the matching manager APK) from **Artifacts** at the bottom of the run page (unzip once). Nothing is published by default; tick `RELEASE` before running to publish a [Release](https://github.com/suhuli/Action-Build-Plus/releases) with the zip, manager APK and SHA-256.
 4. Flash the zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
 
 > [!CAUTION]
@@ -44,12 +44,12 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
 | `LSM_BBG` | on | Baseband-guard partition write protection |
 | `CCM` | on | BBR + BBRv3 congestion control + ECN (default algorithm unchanged) |
-| `RELEASE` | on | Publish a GitHub Release after a successful build |
+| `RELEASE` | off | Tick to publish a GitHub Release after a successful build (off by default) |
 | `UNICODE_BYPASS` | on | Fix for invisible-Unicode path bypass |
 
 **SukiSU-Ultra notes:** the `builtin` branch is made for GKI kernels with built-in SUSFS and has no kprobe/syscall hooks of its own — all hooks come from the SUSFS patch, so the workflow refuses `SUSFS_META=-1` with SukiSU-Ultra. SUSFS v2.3.0 declares `ksu_su_compat_enabled` as a static key while `builtin` defines a bool; [`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) converts it after the SUSFS patch and fails the build on any unexpected code. The manager APK comes from the latest successful main-branch CI run (falls back to the latest release APK for the normal manager).
 
-Leaving the branch and commit parts of `KSU_META` empty uses the pinned versions; any explicit branch/commit is published as a **pre-release**.
+Leaving the branch and commit parts of `KSU_META` empty uses the pinned versions; any explicit branch/commit is marked as a **pre-release** when `RELEASE` is ticked.
 
 Options that had no effect on this device (ZRAM, NETFILTER, HMBIRD, dynamic manifest, SUSFS module bundling) were removed. See the Chinese README for the full list. The version code in the zip name is read from the build log and matches what the manager shows.
 

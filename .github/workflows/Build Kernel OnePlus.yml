@@ -82,9 +82,9 @@ on:
         default: false
       RELEASE:
         type: boolean
-        description: "是否发布到 Release？"
+        description: "是否发布到 Release？(默认不发布，需要时手动勾选)"
         required: true
-        default: true
+        default: false
       BUILD_NOCCACHE:
         type: boolean
         description: "是否停用此次Ccache？"
