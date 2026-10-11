@@ -105,6 +105,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      # 与官方 GKI 构建（kernel/build/_setup_env.sh）一致，/proc/version 显示 build-user@build-host 而不是 runner@runnervm...
+      KBUILD_BUILD_USER: build-user
+      KBUILD_BUILD_HOST: build-host
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
       CCACHE_MAXSIZE: 8G
