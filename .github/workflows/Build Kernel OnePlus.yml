@@ -521,6 +521,7 @@ jobs:
             grep -q 'source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig" || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig"
             echo "已接入: $(readlink "$DRIVER_DIR/kernelsu") @ $(git -C KernelSU describe --tags --always)"
             echo "RESUKISU_REF=$KSU_REF" >> "$GITHUB_ENV"
+            echo "RESUKISU_SHA=$ACTUAL_COMMIT" >> "$GITHUB_ENV"
             [[ -n "$EXPECT_COMMIT" ]] && echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
             cd ./KernelSU
             GIT_HASH=$(git rev-parse --short=8 HEAD)
@@ -756,11 +757,10 @@ jobs:
             echo "CONFIG_KSU_FULL_NAME_FORMAT=\"${KSU_NAME_FORMAT}\"" >> "$CONFIG_FILE"
           fi
 
-          # KPM配置
-          if [ "${{ github.event.inputs.KPM }}" = "KPM" ] || [ "${{ github.event.inputs.KPM }}" = "N/A" ]; then
+          # KPM配置：只有选 KPM 才开启（开启后必须用 patch_linux 处理 Image）；N/A 和 KPN 都关闭
+          if [ "${{ github.event.inputs.KPM }}" = "KPM" ]; then
             echo "CONFIG_KPM=y" >> "$CONFIG_FILE"
-          fi
-          if [ "${{ github.event.inputs.KPM }}" = "KPN" ]; then
+          else
             echo "CONFIG_KPM=n" >> "$CONFIG_FILE"
           fi
 
@@ -1084,42 +1084,77 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MANAGER_BRANCH="${{ steps.manager.outputs.manager_branch }}"
           MANAGER_ARTIFACT="${{ steps.manager.outputs.manager_artifact }}"
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
 
-          # ReSukiSU 使用固定 release 时，下载同一 release 的管理器，保证版本一致
-          if [[ -n "${RESUKISU_RELEASE:-}" && "$MANAGER_ARTIFACT" == "Manager-release" ]]; then
-            APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${RESUKISU_RELEASE}" \
-              --jq '.assets[] | select(.name | endswith("-arm64-v8a-release.apk")) | .browser_download_url' | head -n1)
-            if [[ -n "$APK" ]]; then
-              echo "下载 ${RESUKISU_RELEASE} 管理器: $APK"
-              curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
+          # 下载指定 CI 运行中的管理器构建产物
+          fetch_artifact() {  # 运行ID
+            local url
+            url=$(gh api "repos/${MANAGER_REPO}/actions/runs/$1/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.name == \"$MANAGER_ARTIFACT\" and (.expired | not)) | .archive_download_url" | head -n1)
+            [[ -n "$url" ]] || return 1
+            echo "下载 CI 产物: $MANAGER_ARTIFACT（运行 $1）"
+            curl -fL --retry 3 -H "Authorization: token $GITHUB_TOKEN" -o "${MANAGER_ARTIFACT}.zip" "$url" || return 1
+            # 产物里有多个架构，只要 arm64-v8a（没有时才全部解压）
+            local tmp; tmp=$(mktemp -d)
+            unzip -oj "${MANAGER_ARTIFACT}.zip" "*.apk" -d "$tmp" >/dev/null
+            local apks=("$tmp"/*arm64-v8a*.apk)
+            [[ -f "${apks[0]}" ]] || apks=("$tmp"/*.apk)
+            for apk in "${apks[@]}"; do
+              name=$(basename "$apk")
+              [[ "$MANAGER_ARTIFACT" == Spoofed* ]] && name="Spoofed_${name}"
+              mv "$apk" "./AnyKernel3/$name"
+              echo "已附带: $name"
+            done
+          }
+
+          if [[ "$IS_RESUKISU" == "true" ]]; then
+            # 1) 固定 release 的普通管理器：直接取 release 附件
+            if [[ -n "${RESUKISU_RELEASE:-}" && "$MANAGER_ARTIFACT" == "Manager-release" ]]; then
+              APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${RESUKISU_RELEASE}" \
+                --jq '.assets[] | select(.name | endswith("-arm64-v8a-release.apk")) | .browser_download_url' | head -n1)
+              if [[ -n "$APK" ]]; then
+                echo "下载 ${RESUKISU_RELEASE} 管理器: $APK"
+                curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
+                exit 0
+              fi
+              echo "::warning title=Manager::${RESUKISU_RELEASE} 没有找到 arm64 管理器，改用同一提交的 CI 构建"
+            fi
+
+            # 2) 伪装版或非固定版本：取与内核同一提交的 CI 构建，保证管理器和内核版本一致
+            RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${RESUKISU_SHA}&status=success&per_page=20" \
+              --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty')
+            if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID"; then
               exit 0
             fi
-            echo "::warning title=Manager::${RESUKISU_RELEASE} 没有找到 arm64 管理器，改用 CI 构建"
+
+            # 3) 同一提交的 CI 产物已过期（保留 90 天）或不存在
+            if [[ -n "${RESUKISU_RELEASE:-}" && "$MANAGER_ARTIFACT" != "Manager-release" ]]; then
+              APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${RESUKISU_RELEASE}" \
+                --jq '.assets[] | select(.name | endswith("-arm64-v8a-release.apk")) | .browser_download_url' | head -n1)
+              if [[ -n "$APK" ]]; then
+                echo "::warning title=Manager::${RESUKISU_RELEASE} 的伪装版管理器已过期，改为附带同版本的普通管理器"
+                curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
+                exit 0
+              fi
+            fi
+            echo "::warning title=Manager::没有找到与内核 ${RESUKISU_SHA::8} 对应的管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
+            exit 0
           fi
 
+          # SukiSU-Ultra：取对应分支最新一次成功的 CI 构建
           echo "Using branch: $MANAGER_BRANCH"
           echo "Using repo: $MANAGER_REPO"
           echo "Downloading artifact: $MANAGER_ARTIFACT"
-
-          run_id=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=$MANAGER_BRANCH&status=success&per_page=1" --jq '.workflow_runs[0].id' || echo "")
-
-          if [[ -z "$run_id" ]]; then
-            echo "No successful workflow run found on branch $MANAGER_BRANCH. Skipping download."
+          RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=$MANAGER_BRANCH&status=success&per_page=1" --jq '.workflow_runs[0].id // empty' || true)
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::warning title=Manager::分支 $MANAGER_BRANCH 没有成功的 CI 运行，本次不附带管理器"
             exit 0
           fi
-          artifact_url=$(gh api "repos/${MANAGER_REPO}/actions/runs/$run_id/artifacts" | jq -r ".artifacts[] | select(.name == \"$MANAGER_ARTIFACT\") | .archive_download_url" | head -n1)
-
-          if [[ -z "$artifact_url" ]]; then
-            echo "No artifact '$MANAGER_ARTIFACT' found in run $run_id. Skipping download."
-            exit 0
-          fi
-          echo "Downloading from: $artifact_url"
-          curl -fL -H "Authorization: token $GITHUB_TOKEN" -o "${MANAGER_ARTIFACT}.zip" "$artifact_url"
-          unzip -j "${MANAGER_ARTIFACT}.zip" "*.apk" -d ./AnyKernel3/
+          fetch_artifact "$RUN_ID" || echo "::warning title=Manager::运行 $RUN_ID 中没有 $MANAGER_ARTIFACT，本次不附带管理器"
 
       - name: Set zip Suffix
         id: suffix
@@ -1157,6 +1192,10 @@ jobs:
 
           ASSETS=("$ZIP")
           for apk in AnyKernel3/*.apk; do [[ -f "$apk" ]] && ASSETS+=("$apk"); done
+          if [[ ${#ASSETS[@]} -eq 1 ]]; then
+            echo "::warning title=Manager::本次 Release 没有附带管理器 APK，请查看 Download Manager APK 步骤"
+            NO_APK=true
+          fi
           SHA=$(sha256sum "$ZIP" | cut -d' ' -f1)
 
           {
@@ -1174,6 +1213,7 @@ jobs:
             echo
             echo "**SHA-256**：\`${SHA}\`"
             echo
+            [[ "${NO_APK:-}" == true ]] && echo "> ⚠️ 本次没有附带管理器，请使用与内核同版本的管理器。" && echo
             echo "刷入前请备份 boot 分区。"
           } > release_notes.md
           cat release_notes.md

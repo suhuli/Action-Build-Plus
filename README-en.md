@@ -35,7 +35,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 
 | Input | Default | Meaning |
 |---|---|---|
-| `MANAGER_SOURCE` | `RESUKISU` | KernelSU variant: ReSukiSU, or SukiSU-Ultra (`MIUIX` / `MD3`); `_SPOOF` = disguised manager |
+| `MANAGER_SOURCE` | `RESUKISU` | KernelSU variant: ReSukiSU, or SukiSU-Ultra (`MIUIX` / `MD3`); `_SPOOF` = disguised manager (random package name, taken from the CI build of the same commit; falls back to the normal APK once that build expires) |
 | `KPM` | `N/A` | `KPM`/`KPN` only work with SukiSU-Ultra |
 | `SUSFS_META` | empty | Empty = pinned, tested SUSFS; commit hash or step count = roll back; `-1` = disable SUSFS |
 | `BUILD_TIME` | `F` | Value of `uname -v`; `F` = actual build time |

@@ -38,7 +38,7 @@
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU 分支。`RESUKISU` 对应 ReSukiSU；`MIUIX`/`MD3` 对应 SukiSU-Ultra 的两种界面；`_SPOOF` 为伪装版管理器 |
+| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU 分支。`RESUKISU` 对应 ReSukiSU；`MIUIX`/`MD3` 对应 SukiSU-Ultra 的两种界面；`_SPOOF` 为伪装版管理器（随机包名，取自与内核同一提交的 CI 构建；该构建过期后改附普通版） |
 | 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 不支持 |
 | SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS |
 | 构建时间 `BUILD_TIME` | `F` | 写入 `uname -v` 的时间。`F` 为实际编译时间，也可填任意时间字符串 |

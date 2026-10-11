@@ -68,17 +68,37 @@ def fix_vma_pad_start(root: Path) -> None:
     print("task_mmu.c: 已补充 VMA_PAD_START 回退定义")
 
 
+def _enclosing_returns_void(s: str, pos: int) -> bool:
+    # 内核代码风格：函数体的 { 位于行首，函数头在它前面
+    brace = s.rfind("\n{\n", 0, pos)
+    if brace < 0:
+        sys.exit("task_mmu.c: 找不到 goto show_pad 所在的函数，请检查源码")
+    head_start = max(s.rfind("\n}\n", 0, brace), s.rfind("\n\n", 0, brace))
+    head = s[head_start:brace]
+    m = re.search(r"(\w[\w\s\*]*?)\b(\w+)\s*\(", head)
+    if not m:
+        sys.exit("task_mmu.c: 无法识别 goto show_pad 所在函数的返回类型，请检查源码")
+    return re.fullmatch(r"(?:static\s+)?(?:inline\s+)?void\s*", m.group(1).strip() + " ") is not None
+
+
 def fix_show_pad(root: Path) -> None:
     # 部分 SUSFS 版本的 show_map_vma() 新增代码会 goto show_pad，而该标签来自本机内核没有的
-    # pgsize 迁移补丁。没有这个标签时改为 return 0（等价于没有填充页），否则编译失败。
+    # pgsize 迁移补丁。没有这个标签时直接返回（等价于没有填充页），否则编译失败。
+    # show_map_vma() 返回 void，要用 "return;"；返回 int 的函数才用 "return 0;"。
     p = root / "fs/proc/task_mmu.c"
     if not p.exists():
         return
     s = p.read_text()
     if not re.search(r"goto\s+show_pad;", s) or re.search(r"^show_pad:", s, re.M):
         return
-    p.write_text(re.sub(r"goto\s+show_pad;", "return 0;", s))
-    print("task_mmu.c: 内核没有 show_pad 标签，已改为 return 0")
+    out, last = [], 0
+    for m in re.finditer(r"goto\s+show_pad;", s):
+        out.append(s[last:m.start()])
+        out.append("return;" if _enclosing_returns_void(s, m.start()) else "return 0;")
+        last = m.end()
+    out.append(s[last:])
+    p.write_text("".join(out))
+    print("task_mmu.c: 内核没有 show_pad 标签，已改为直接返回")
 
 
 def main() -> None:
