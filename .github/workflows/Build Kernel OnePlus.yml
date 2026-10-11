@@ -572,6 +572,141 @@ jobs:
           grep -nE '^(REPO_OWNER|REPO_NAME|REPO_BRANCH|KSU_VERSION_FULL|VERSION_BASE|VERSION_OFFSET)' kernel/Makefile || true
           echo "::endgroup::"
 
+      - name: Pair SukiSU-Ultra Manager
+        if: ${{ env.IS_RESUKISU != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 编译前选好要附带的管理器，并把内核的 KernelSU 版本号设成该管理器的 versionCode。
+          # 上游 builtin 的 Makefile 按 main 分支“编译时”的提交数计算版本号（越晚编译越大），
+          # 而 UAPI 匹配的管理器通常是更早的正式版，两者不同时管理器首页提示“管理器版本与 KernelSU 驱动版本不匹配”
+          MANAGER_BRANCH="${{ steps.manager.outputs.manager_branch }}"
+          MANAGER_ARTIFACT="${{ steps.manager.outputs.manager_artifact }}"
+          MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
+          MAKEFILE="kernel_workspace/kernel_platform/KernelSU/kernel/Makefile"
+          STAGE="$GITHUB_WORKSPACE/manager_apk"
+          mkdir -p "$STAGE"
+
+          ATTACHED=()
+          fetch_artifact() {  # 运行ID [产物名...]（默认 $MANAGER_ARTIFACT）
+            local run=$1 url="" art=""; shift
+            local names=("$@"); [[ ${#names[@]} -gt 0 ]] || names=("$MANAGER_ARTIFACT")
+            for art in "${names[@]}"; do
+              url=$(gh api "repos/${MANAGER_REPO}/actions/runs/${run}/artifacts?per_page=100" \
+                --jq ".artifacts[] | select(.name == \"$art\" and (.expired | not)) | .archive_download_url" | head -n1 || true)
+              [[ -n "$url" ]] && break
+            done
+            [[ -n "$url" ]] || return 1
+            echo "下载 CI 产物: $art（运行 $run）"
+            curl -fL --retry 3 -H "Authorization: token $GITHUB_TOKEN" -o "${art}.zip" "$url" || return 1
+            # 产物里有多个架构，只要 arm64-v8a（没有时才全部解压）
+            local tmp; tmp=$(mktemp -d)
+            unzip -oj "${art}.zip" "*.apk" -d "$tmp" >/dev/null
+            local apks=("$tmp"/*arm64-v8a*.apk)
+            [[ -f "${apks[0]}" ]] || apks=("$tmp"/*.apk)
+            for apk in "${apks[@]}"; do
+              name=$(basename "$apk")
+              [[ "$art" == *[Ss]poofed* && "$name" != *[Ss]poofed* ]] && name="Spoofed_${name}"
+              mv "$apk" "$STAGE/$name"
+              ATTACHED+=("$name")
+              echo "已选择: $name"
+            done
+          }
+
+          pick_manager() {
+            # SukiSU-Ultra：管理器必须与内核 UAPI 版本相同，否则提示"需要更新内核"并禁用大部分功能。
+            # builtin 分支的 UAPI 落后于 main（例如内核为 2、main 管理器已是 5），所以不能直接取 main 的最新管理器：
+            # 先找 UAPI 相同的最新正式版，再看 main 最新 CI；都不匹配时不附带，避免装上不能用的管理器
+            if [[ -z "${KSU_UAPI:-}" ]]; then
+              echo "::warning title=Manager::未能读取内核 UAPI 版本，本次不附带管理器"
+              return 1
+            fi
+            uapi_of() {  # 提交 → 该提交源码中的 KERNEL_SU_UAPI_VERSION（读不到为空）
+              gh api -H "Accept: application/vnd.github.raw" "repos/${MANAGER_REPO}/contents/uapi/supercall.h?ref=$1" 2>/dev/null \
+                | grep -oP 'KERNEL_SU_UAPI_VERSION\s*(=|,)\s*\K[0-9]+' | head -n1 || true
+            }
+            SPOOF=false; [[ "$MANAGER_ARTIFACT" == *[Ss]poofed* ]] && SPOOF=true
+            echo "内核 UAPI 版本: $KSU_UAPI；伪装版: $SPOOF"
+
+            # 候选 1：UAPI 相同的最新正式版
+            REL_TAG="" REL_SHA="" REL_APK=""
+            for TAG in $(gh api "repos/${MANAGER_REPO}/releases?per_page=10" \
+                --jq '.[] | select((.draft | not) and (.prerelease | not)) | .tag_name' || true); do
+              SHA=$(gh api "repos/${MANAGER_REPO}/commits/${TAG}" --jq .sha 2>/dev/null || true)
+              [[ -n "$SHA" ]] || continue
+              U=$(uapi_of "$SHA"); echo "  正式版 ${TAG}: UAPI ${U:-未知}"
+              if [[ "$U" == "$KSU_UAPI" ]]; then
+                REL_TAG="$TAG" REL_SHA="$SHA"
+                REL_APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${TAG}" \
+                  --jq '.assets[] | select(.name | endswith("-release.apk")) | .browser_download_url' | head -n1 || true)
+                break
+              fi
+            done
+            # 候选 2：main 分支最近一次成功的 push 构建
+            MAIN_RUN="" MAIN_UAPI=""
+            read -r MAIN_RUN MAIN_SHA < <(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=${MANAGER_BRANCH}&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0] | "\(.id) \(.head_sha)"' 2>/dev/null || true) || true
+            [[ -n "${MAIN_SHA:-}" ]] && MAIN_UAPI=$(uapi_of "$MAIN_SHA")
+            echo "  main 最新 CI ${MAIN_SHA::8}: UAPI ${MAIN_UAPI:-未知}"
+            [[ "$MAIN_UAPI" == "$KSU_UAPI" ]] || MAIN_RUN=""
+
+            if [[ "$SPOOF" == true ]]; then
+              if [[ -n "$REL_SHA" ]]; then
+                RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${REL_SHA}&status=success&per_page=20" \
+                  --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty' || true)
+                if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID" Manager-spoofed Spoofed-Manager; then
+                  # 旧版 CI 的伪装版文件名不含版本（Spoofed-Manager.apk），补上版本名（版本号与正式版不同，不写）
+                  for f in "${ATTACHED[@]}"; do
+                    if [[ "$f" != SukiSU_* ]]; then
+                      mv "$STAGE/$f" "$STAGE/SukiSU_${REL_TAG}-spoofed.apk" && echo "重命名: $f → SukiSU_${REL_TAG}-spoofed.apk"
+                    fi
+                  done
+                  echo "管理器: ${REL_TAG} 伪装版"; return 0
+                fi
+              fi
+              if [[ -n "$MAIN_RUN" ]] && fetch_artifact "$MAIN_RUN" Manager-spoofed Spoofed-Manager; then
+                echo "管理器: main ${MAIN_SHA::8} 伪装版"; return 0
+              fi
+              if [[ -n "$REL_APK" ]]; then
+                echo "::warning title=Manager::与内核 UAPI ${KSU_UAPI} 匹配的伪装版管理器已过期，改为附带 ${REL_TAG} 普通版"
+                curl -fL --retry 3 -o "$STAGE/$(basename "$REL_APK")" "$REL_APK" && return 0
+              fi
+            else
+              if [[ -n "$REL_APK" ]]; then
+                echo "管理器: ${REL_TAG} 正式版 $(basename "$REL_APK")"
+                curl -fL --retry 3 -o "$STAGE/$(basename "$REL_APK")" "$REL_APK" && return 0
+              fi
+              if [[ -n "$MAIN_RUN" ]] && fetch_artifact "$MAIN_RUN" Manager; then
+                echo "管理器: main ${MAIN_SHA::8}"; return 0
+              fi
+            fi
+            return 1
+          }
+
+          if ! pick_manager; then
+            echo "::warning title=Manager::没有找到与内核 UAPI ${KSU_UAPI:-未知} 匹配的 SukiSU-Ultra 管理器，本次不附带（不匹配的管理器会提示需要更新内核且无法使用）"
+            exit 0
+          fi
+
+          # 以 APK 实际的 versionCode 为准（读不到时取文件名中的版本号）
+          APK=$(find "$STAGE" -maxdepth 1 -name '*.apk' | sort | head -n1)
+          CODE=$(python3 scripts/apk_version_code.py "$APK" || true)
+          [[ "$CODE" =~ ^[0-9]+$ ]] || CODE=$(basename "$APK" | grep -oP '_\K[0-9]{5,}(?=[-_.])' | head -n1 || true)
+          if [[ ! "$CODE" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=KSU Version::读不到 $(basename "$APK") 的版本号，内核版本号保持上游计算值（管理器可能提示版本不匹配）"
+            exit 0
+          fi
+          if [[ "$(grep -c '^KSU_VERSION[[:space:]]*:=' "$MAKEFILE")" != 1 ]]; then
+            echo "::warning title=KSU Version::KernelSU Makefile 中没有唯一的 KSU_VERSION 定义，内核版本号保持上游计算值（管理器可能提示版本不匹配）"
+            exit 0
+          fi
+          sed -i "s|^KSU_VERSION[[:space:]]*:=.*|KSU_VERSION     := ${CODE}|" "$MAKEFILE"
+          grep -n '^KSU_VERSION[[:space:]]*:=' "$MAKEFILE"
+          echo "内核 KernelSU 版本号: ${KSUVER} → ${CODE}（与管理器 $(basename "$APK") 一致）"
+          echo "KSUVER=$CODE" >> "$GITHUB_ENV"
+          echo "MANAGER_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
+
       - name: Apply SUSFS
         run: |
           cd kernel_workspace
@@ -982,6 +1117,9 @@ jobs:
           else
             echo "::warning title=KSU Version::未能从编译日志读取版本号，刷机包名使用预估值 $KSUVER"
           fi
+          if [[ -n "${MANAGER_VERSION_CODE:-}" && -n "$CODE" && "$CODE" != "$MANAGER_VERSION_CODE" ]]; then
+            echo "::warning title=KSU Version::内核版本号 $CODE 与附带的管理器 $MANAGER_VERSION_CODE 不一致，管理器会提示版本不匹配"
+          fi
           if [[ "$NAME" == *-dirty* ]]; then
             echo "::warning title=KSU Version::版本名带有 -dirty：$NAME"
           fi
@@ -1052,7 +1190,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MANAGER_BRANCH="${{ steps.manager.outputs.manager_branch }}"
           MANAGER_ARTIFACT="${{ steps.manager.outputs.manager_artifact }}"
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
 
@@ -1117,75 +1254,16 @@ jobs:
             exit 0
           fi
 
-          # SukiSU-Ultra：管理器必须与内核 UAPI 版本相同，否则提示"需要更新内核"并禁用大部分功能。
-          # builtin 分支的 UAPI 落后于 main（例如内核为 2、main 管理器已是 5），所以不能直接取 main 的最新管理器：
-          # 先找 UAPI 相同的最新正式版，再看 main 最新 CI；都不匹配时不附带，避免装上不能用的管理器
-          if [[ -z "${KSU_UAPI:-}" ]]; then
-            echo "::warning title=Manager::未能读取内核 UAPI 版本，本次不附带管理器"
+          # SukiSU-Ultra：管理器已在编译前选好（Pair SukiSU-Ultra Manager 步骤），内核版本号与它一致
+          shopt -s nullglob
+          APKS=("$GITHUB_WORKSPACE"/manager_apk/*.apk)
+          if [[ ${#APKS[@]} -eq 0 ]]; then
+            echo "::warning title=Manager::本次不附带 SukiSU-Ultra 管理器（原因见 Pair SukiSU-Ultra Manager 步骤）"
             exit 0
           fi
-          uapi_of() {  # 提交 → 该提交源码中的 KERNEL_SU_UAPI_VERSION（读不到为空）
-            gh api -H "Accept: application/vnd.github.raw" "repos/${MANAGER_REPO}/contents/uapi/supercall.h?ref=$1" 2>/dev/null \
-              | grep -oP 'KERNEL_SU_UAPI_VERSION\s*(=|,)\s*\K[0-9]+' | head -n1 || true
-          }
-          SPOOF=false; [[ "$MANAGER_ARTIFACT" == *[Ss]poofed* ]] && SPOOF=true
-          echo "内核 UAPI 版本: $KSU_UAPI；伪装版: $SPOOF"
-
-          # 候选 1：UAPI 相同的最新正式版
-          REL_TAG="" REL_SHA="" REL_APK=""
-          for TAG in $(gh api "repos/${MANAGER_REPO}/releases?per_page=10" \
-              --jq '.[] | select((.draft | not) and (.prerelease | not)) | .tag_name' || true); do
-            SHA=$(gh api "repos/${MANAGER_REPO}/commits/${TAG}" --jq .sha 2>/dev/null || true)
-            [[ -n "$SHA" ]] || continue
-            U=$(uapi_of "$SHA"); echo "  正式版 ${TAG}: UAPI ${U:-未知}"
-            if [[ "$U" == "$KSU_UAPI" ]]; then
-              REL_TAG="$TAG" REL_SHA="$SHA"
-              REL_APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${TAG}" \
-                --jq '.assets[] | select(.name | endswith("-release.apk")) | .browser_download_url' | head -n1 || true)
-              break
-            fi
+          for apk in "${APKS[@]}"; do
+            mv "$apk" ./AnyKernel3/ && echo "已附带: $(basename "$apk")"
           done
-          # 候选 2：main 分支最近一次成功的 push 构建
-          MAIN_RUN="" MAIN_UAPI=""
-          read -r MAIN_RUN MAIN_SHA < <(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=${MANAGER_BRANCH}&event=push&status=success&per_page=1" \
-            --jq '.workflow_runs[0] | "\(.id) \(.head_sha)"' 2>/dev/null || true) || true
-          [[ -n "${MAIN_SHA:-}" ]] && MAIN_UAPI=$(uapi_of "$MAIN_SHA")
-          echo "  main 最新 CI ${MAIN_SHA::8}: UAPI ${MAIN_UAPI:-未知}"
-          [[ "$MAIN_UAPI" == "$KSU_UAPI" ]] || MAIN_RUN=""
-
-          if [[ "$SPOOF" == true ]]; then
-            if [[ -n "$REL_SHA" ]]; then
-              RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${REL_SHA}&status=success&per_page=20" \
-                --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty' || true)
-              if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID" Manager-spoofed Spoofed-Manager; then
-                # 旧版 CI 的伪装版文件名不含版本（Spoofed-Manager.apk），补上版本名（版本号与正式版不同，不写）
-                for f in "${ATTACHED[@]}"; do
-                  if [[ "$f" != SukiSU_* ]]; then
-                    mv "./AnyKernel3/$f" "./AnyKernel3/SukiSU_${REL_TAG}-spoofed.apk" && echo "重命名: $f → SukiSU_${REL_TAG}-spoofed.apk"
-                  fi
-                done
-                echo "管理器: ${REL_TAG} 伪装版"; exit 0
-              fi
-            fi
-            if [[ -n "$MAIN_RUN" ]] && fetch_artifact "$MAIN_RUN" Manager-spoofed Spoofed-Manager; then
-              echo "管理器: main ${MAIN_SHA::8} 伪装版"; exit 0
-            fi
-            if [[ -n "$REL_APK" ]]; then
-              echo "::warning title=Manager::与内核 UAPI ${KSU_UAPI} 匹配的伪装版管理器已过期，改为附带 ${REL_TAG} 普通版"
-              curl -fL --retry 3 -o "./AnyKernel3/$(basename "$REL_APK")" "$REL_APK"
-              exit 0
-            fi
-          else
-            if [[ -n "$REL_APK" ]]; then
-              echo "管理器: ${REL_TAG} 正式版 $(basename "$REL_APK")"
-              curl -fL --retry 3 -o "./AnyKernel3/$(basename "$REL_APK")" "$REL_APK"
-              exit 0
-            fi
-            if [[ -n "$MAIN_RUN" ]] && fetch_artifact "$MAIN_RUN" Manager; then
-              echo "管理器: main ${MAIN_SHA::8}"; exit 0
-            fi
-          fi
-          echo "::warning title=Manager::没有找到与内核 UAPI ${KSU_UAPI} 匹配的 SukiSU-Ultra 管理器，本次不附带（不匹配的管理器会提示需要更新内核且无法使用）"
 
       - name: Set zip Suffix
         id: suffix

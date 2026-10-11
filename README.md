@@ -14,7 +14,7 @@
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
 | ReSukiSU（默认） | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
-| SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，版本号 40971，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0） |
+| SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0，内核版本号设为与管理器相同的 40900） |
 | SUSFS | v2.3.0（`gki-android12-5.10` 分支 `9892175b`） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
@@ -62,12 +62,12 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 | | ReSukiSU | SukiSU-Ultra |
 |---|---|---|
 | 内核源码 | Baka-SU/BakaSU `v4.2.0-rc3` | SukiSU-Ultra `builtin` 分支（专为内置 SUSFS 的 GKI 内核） |
-| 管理器 | 同一 release 的 arm64 APK；伪装版取同一提交的 CI 构建 | 按内核 **UAPI 版本**自动挑选：先找 UAPI 相同的最新正式版（伪装版取该版本的 CI 构建），再看 main 最新 CI；都不匹配就不附带 |
+| 管理器 | 同一 release 的 arm64 APK；伪装版取同一提交的 CI 构建 | 按内核 **UAPI 版本**自动挑选：先找 UAPI 相同的最新正式版（伪装版取该版本的 CI 构建），再看 main 最新 CI；都不匹配就不附带。内核 KernelSU 版本号设为所选管理器的 versionCode |
 | SUSFS | 可关闭 | **必须开启**：`builtin` 分支本身不带 kprobe/系统调用钩子，钩子全部由 SUSFS 补丁提供，关闭后能编译但无法获取 root，所以工作流直接拒绝 |
 | KPM / KPN | 不支持 | 支持 |
 
 > [!IMPORTANT]
-> SukiSU-Ultra 管理器与内核的 UAPI 版本必须**完全相同**，否则管理器会提示"需要更新内核"（或"需要更新管理器"），并禁用超级用户、模块等大部分功能。`builtin` 分支的 UAPI 落后于 main（目前内核为 2，main 的最新管理器已是 5），所以**不要安装 main 分支或官网最新的管理器**，请使用刷机包里附带的版本。
+> SukiSU-Ultra 管理器与内核的 UAPI 版本必须**完全相同**，否则管理器会提示"需要更新内核"（或"需要更新管理器"），并禁用超级用户、模块等大部分功能。`builtin` 分支的 UAPI 落后于 main（目前内核为 2，main 的最新管理器已是 5），所以**不要安装 main 分支或官网最新的管理器**，请使用刷机包里附带的版本。上游 `builtin` 的版本号按编译时 main 分支的提交数计算（越晚编译越大），会与较早的正式版管理器不同，管理器首页因此提示"管理器版本与 KernelSU 驱动版本不匹配"；工作流在编译前选好管理器，并把内核版本号改成该管理器 APK 的 versionCode（[`scripts/apk_version_code.py`](scripts/apk_version_code.py) 读取），两者完全一致。
 
 SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类型定义不一致（SUSFS 2026-04 起改为 static key），[`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) 会在打完 SUSFS 补丁后自动转换；遇到无法识别的代码结构会直接让构建失败，不会悄悄跳过。
 
