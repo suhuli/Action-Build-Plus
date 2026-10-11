@@ -4,19 +4,17 @@ on:
     inputs:
       MANAGER_SOURCE:
         type: choice
-        description: "管理器调用方向"
+        description: "KernelSU 分支(SPOOF=伪装版管理器)"
         required: true
         default: RESUKISU
         options:
-          - MIUIX
-          - MIUIX_SPOOF
           - RESUKISU
           - RESUKISU_SPOOF
-          - MD3
-          - MD3_SPOOF
+          - SUKISU
+          - SUKISU_SPOOF
       KPM:
         type: choice
-        description: "内核模块实现方式(ReSukiSU不支持KPM)"
+        description: "内核模块实现方式(仅SukiSU-Ultra支持)"
         required: true
         default: N/A
         options:
@@ -25,7 +23,7 @@ on:
           - N/A
       SUSFS_META:
         type: string
-        description: "回退SUSFS(输入哈希或次数或-1关闭)"
+        description: "回退SUSFS(输入哈希或次数或-1关闭，SukiSU-Ultra不能关闭)"
         required: false
         default: ""
       BUILD_TIME:
@@ -103,7 +101,7 @@ permissions:
 
 jobs:
   build:
-    name: ${{ github.event.inputs.KPM == 'KPM' && '[KPM] ' || github.event.inputs.KPM == 'KPN' && '[KPN] ' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '[BBG] ' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && '[DS] ' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '[REKER] ' || '' }}OnePlus Ace Race T ${{ github.event.inputs.SUFFIX }}
+    name: ${{ startsWith(github.event.inputs.MANAGER_SOURCE, 'SUKISU') && (github.event.inputs.KPM == 'KPM' && '[SukiSU][KPM] ' || github.event.inputs.KPM == 'KPN' && '[SukiSU][KPN] ' || '[SukiSU] ') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '[BBG] ' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && '[DS] ' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '[REKER] ' || '' }}OnePlus Ace Race T ${{ github.event.inputs.SUFFIX }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
@@ -113,6 +111,7 @@ jobs:
       # 固定版本，maintenance.yml 每天检查上游是否有新提交
       AK3_COMMIT: 0fc7569866bb5d5fe51752cc410dca3e92ab332f  # Numbersf/AnyKernel3
       BBG_COMMIT: a54e0dc6cf0aff4dd87fec49644a02d2eb612905  # vc-teahouse/Baseband-guard
+      SUKISU_PATCH_COMMIT: 547ae94bcaec53d030398f857950c64662043a5d  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -406,165 +405,123 @@ jobs:
             fi
           done
 
-      # 伪官方格式的随机后缀（仅在 SUFFIX 未设置时生效）*
       - name: Resolve Manager Source
         id: manager
         run: |
           MANAGER_SOURCE="${{ github.event.inputs.MANAGER_SOURCE }}"
 
+          # ARTIFACT 为上游 build-manager.yml 产物名（区分大小写）
           case "$MANAGER_SOURCE" in
-            RESUKISU)
-              BRANCH="main"
-              ARTIFACT="Manager-release"
-              REPO="Baka-SU/BakaSU"
-              DEFAULT_KSU_BRANCH="main"
-              ;;
-            RESUKISU_SPOOF)
-              BRANCH="main"
-              ARTIFACT="Spoofed-Manager-release"
-              REPO="Baka-SU/BakaSU"
-              DEFAULT_KSU_BRANCH="main"
-              ;;
-            MD3)
-              BRANCH="old"
-              ARTIFACT="manager"
-              REPO="SukiSU-Ultra/SukiSU-Ultra"
-              DEFAULT_KSU_BRANCH="builtin"
-              ;;
-            MD3_SPOOF)
-              BRANCH="old"
-              ARTIFACT="Spoofed-Manager"
-              REPO="SukiSU-Ultra/SukiSU-Ultra"
-              DEFAULT_KSU_BRANCH="builtin"
-              ;;
-            MIUIX_SPOOF)
-              BRANCH="main"
-              ARTIFACT="Spoofed-Manager"
-              REPO="SukiSU-Ultra/SukiSU-Ultra"
-              DEFAULT_KSU_BRANCH="builtin"
-              ;;
-            MIUIX|*)
-              BRANCH="main"
-              ARTIFACT="manager"
-              REPO="SukiSU-Ultra/SukiSU-Ultra"
-              DEFAULT_KSU_BRANCH="builtin"
+            RESUKISU)       REPO="Baka-SU/BakaSU";            ARTIFACT="Manager-release";         DEFAULT_KSU_BRANCH="main" ;;
+            RESUKISU_SPOOF) REPO="Baka-SU/BakaSU";            ARTIFACT="Spoofed-Manager-release"; DEFAULT_KSU_BRANCH="main" ;;
+            # SukiSU-Ultra：内核取 builtin 分支（内置 SUSFS 接口），管理器取 main 分支 CI；
+            # MIUIX / Material 3 两种界面已合并到同一个管理器，在管理器设置中切换
+            SUKISU)         REPO="SukiSU-Ultra/SukiSU-Ultra"; ARTIFACT="Manager";                 DEFAULT_KSU_BRANCH="builtin" ;;
+            SUKISU_SPOOF)   REPO="SukiSU-Ultra/SukiSU-Ultra"; ARTIFACT="Manager-spoofed";         DEFAULT_KSU_BRANCH="builtin" ;;
+            *)
+              echo "::error title=MANAGER_SOURCE::未知的选项 $MANAGER_SOURCE"
+              exit 1
               ;;
           esac
 
-          echo "manager_branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          if [[ "$REPO" == "SukiSU-Ultra/SukiSU-Ultra" && "${{ github.event.inputs.SUSFS_META }}" == "-1" ]]; then
+            # builtin 分支没有自己的 syscall/kprobe 钩子，execve、faccessat、stat 等钩子由 SUSFS 内核补丁调用；
+            # 关闭 SUSFS 也能编译通过，但刷入后没有 root，所以直接拒绝
+            echo "::error title=SUSFS_META::SukiSU-Ultra builtin 依赖 SUSFS 提供内核钩子，不能关闭 SUSFS（SUSFS_META=-1）"
+            exit 1
+          fi
+
+          echo "manager_branch=main" >> "$GITHUB_OUTPUT"
           echo "manager_artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
           echo "manager_repo=$REPO" >> "$GITHUB_OUTPUT"
           echo "default_ksu_branch=$DEFAULT_KSU_BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Add SukiSU Ultra
+      - name: Add KernelSU
         run: |
           cd kernel_workspace/kernel_platform
-          MANAGER_BRANCH="${{ steps.manager.outputs.manager_branch }}"
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
           DEFAULT_KSU_BRANCH="${{ steps.manager.outputs.default_ksu_branch }}"
           KSU_META="${{ github.event.inputs.KSU_META }}"
-          # ReSukiSU 固定版本（更新时同时修改 tag 和对应提交）
+          # 固定版本（maintenance.yml 每天检查上游；更新时同时修改 tag 和对应提交）
           RESUKISU_TAG="v4.2.0-rc3"
           RESUKISU_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"
-          USER_BRANCH="${KSU_META%%/*}"
+          SUKISU_BUILTIN_COMMIT="6c284e957feaa9a388a9f1c37dc4ec80d95e434b"  # SukiSU-Ultra builtin 分支，已核对与固定的 SUSFS 接口一致
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
             echo "错误: KSU_META 参数缺少必要的分隔符 '/'，格式应为: 分支名/自定义标识(可省略)/提交hash(可省略)"
             exit 10
           fi
-
           # 解析字段：分支 / 自定义标识 / 手动 hash
-          IFS='/' read -r BRANCH_NAME CUSTOM_TAG MANUAL_HASH <<< "$KSU_META"
-          [[ -z "$BRANCH_NAME" ]] && BRANCH_NAME="$DEFAULT_KSU_BRANCH"
+          IFS='/' read -r USER_BRANCH CUSTOM_TAG MANUAL_HASH <<< "$KSU_META"
           # 自定义标识会写进内核版本名，只保留安全字符
           CUSTOM_TAG=$(printf '%s' "$CUSTOM_TAG" | tr -cd 'A-Za-z0-9._+~-')
+          if [[ -n "$MANUAL_HASH" && ! "$MANUAL_HASH" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            echo "::error title=KSU_META::第三段应为提交哈希（7～40 位十六进制），实际为: $MANUAL_HASH"
+            exit 10
+          fi
 
           IS_RESUKISU=false
           [[ "$MANAGER_REPO" == "Baka-SU/BakaSU" ]] && IS_RESUKISU=true
           echo "IS_RESUKISU=$IS_RESUKISU" >> "$GITHUB_ENV"
-
-          if [[ "$IS_RESUKISU" == true && "$BRANCH_NAME" == "builtin" ]]; then
-            echo "ReSukiSU 不存在 builtin 分支，自动回退到 $DEFAULT_KSU_BRANCH"
-            BRANCH_NAME="$DEFAULT_KSU_BRANCH"
+          if [[ "$IS_RESUKISU" == true && "$USER_BRANCH" == "builtin" ]]; then
+            echo "ReSukiSU 不存在 builtin 分支，改用固定版本"
             USER_BRANCH=""
           fi
+          BRANCH_NAME="${USER_BRANCH:-$DEFAULT_KSU_BRANCH}"  # 写进版本名
 
-          echo "分支名: $BRANCH_NAME"
+          # 默认用固定版本；填了分支或提交哈希时用指定的版本（Release 会标为预发布）
+          EXPECT_COMMIT=""
+          if [[ -n "$MANUAL_HASH" ]]; then
+            KSU_REF="$MANUAL_HASH"
+          elif [[ -n "$USER_BRANCH" ]]; then
+            KSU_REF="origin/$USER_BRANCH"
+          elif [[ "$IS_RESUKISU" == true ]]; then
+            KSU_REF="$RESUKISU_TAG"; EXPECT_COMMIT="$RESUKISU_COMMIT"
+          else
+            KSU_REF="$SUKISU_BUILTIN_COMMIT"; EXPECT_COMMIT="$SUKISU_BUILTIN_COMMIT"
+          fi
+          echo "KernelSU: ${MANAGER_REPO} @ ${KSU_REF}"
           [[ -n "$CUSTOM_TAG" ]] && echo "自定义版本标识: $CUSTOM_TAG" || echo "自定义版本标识: 未启用"
-          [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
 
-          if [[ "$IS_RESUKISU" == true ]]; then
-            # 默认用固定的 release；填了分支或提交哈希时用指定的版本
-            EXPECT_COMMIT=""
-            if [[ -n "$MANUAL_HASH" ]]; then
-              KSU_REF="$MANUAL_HASH"
-            elif [[ -n "$USER_BRANCH" ]]; then
-              KSU_REF="$USER_BRANCH"
-            else
-              KSU_REF="$RESUKISU_TAG"
-              EXPECT_COMMIT="$RESUKISU_COMMIT"
-            fi
-            echo "ReSukiSU 版本: $KSU_REF"
-            # 完整克隆：内核版本号由提交数计算，版本名取自最近的 tag
-            git clone -q "https://github.com/${MANAGER_REPO}.git" KernelSU
-            git -C KernelSU -c advice.detachedHead=false checkout -q "$KSU_REF"
-            ACTUAL_COMMIT=$(git -C KernelSU rev-parse HEAD)
-            if [[ -n "$EXPECT_COMMIT" && "$ACTUAL_COMMIT" != "$EXPECT_COMMIT" ]]; then
-              echo "::error title=ReSukiSU::$KSU_REF 指向 $ACTUAL_COMMIT，与固定的 $EXPECT_COMMIT 不一致"
-              exit 1
-            fi
-            # 等同于官方 setup.sh 的接入步骤（不用它是因为它会 pull 并切换分支）
-            DRIVER_DIR="common/drivers"; [[ -d "$DRIVER_DIR" ]] || DRIVER_DIR="drivers"
-            ln -sfn "$(realpath --relative-to="$DRIVER_DIR" KernelSU/kernel)" "$DRIVER_DIR/kernelsu"
-            grep -q "kernelsu" "$DRIVER_DIR/Makefile" || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> "$DRIVER_DIR/Makefile"
-            grep -q 'source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig" || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig"
-            echo "已接入: $(readlink "$DRIVER_DIR/kernelsu") @ $(git -C KernelSU describe --tags --always)"
-            echo "RESUKISU_REF=$KSU_REF" >> "$GITHUB_ENV"
-            echo "RESUKISU_SHA=$ACTUAL_COMMIT" >> "$GITHUB_ENV"
-            [[ -n "$EXPECT_COMMIT" ]] && echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
-            cd ./KernelSU
-            GIT_HASH=$(git rev-parse --short=8 HEAD)
-            SHORT_HASH="$GIT_HASH"
-          else
-          KSU_SETUP_REF="$MANAGER_BRANCH"
-          [[ -n "$MANUAL_HASH" ]] && KSU_SETUP_REF="$MANUAL_HASH"
-          curl -LSs "https://raw.githubusercontent.com/${MANAGER_REPO}/${KSU_SETUP_REF}/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+          # 完整克隆：版本号由提交数计算（SukiSU-Ultra 按 main 分支提交数），版本名取自 tag。
+          # 不用官方 setup.sh：它会 pull/stash，并且 checkout 失败时只打印一行就继续，可能悄悄用错版本
+          git clone -q "https://github.com/${MANAGER_REPO}.git" KernelSU
+          git -C KernelSU -c advice.detachedHead=false checkout -q "$KSU_REF"
+          ACTUAL_COMMIT=$(git -C KernelSU rev-parse HEAD)
+          if [[ -n "$EXPECT_COMMIT" && "$ACTUAL_COMMIT" != "$EXPECT_COMMIT" ]]; then
+            echo "::error title=KernelSU::$KSU_REF 指向 $ACTUAL_COMMIT，与固定的 $EXPECT_COMMIT 不一致"
+            exit 1
+          fi
+          if [[ "$IS_RESUKISU" != true ]] && ! grep -qx 'config KSU_SUSFS' KernelSU/kernel/Kconfig; then
+            echo "::error title=KernelSU::SukiSU-Ultra ${KSU_REF} 不是 builtin 结构（没有内置 SUSFS 接口），本工作流只支持 builtin 分支"
+            exit 1
+          fi
+
+          # 接入内核（等同于官方 setup.sh 的接入步骤）
+          DRIVER_DIR="common/drivers"; [[ -d "$DRIVER_DIR" ]] || DRIVER_DIR="drivers"
+          ln -sfn "$(realpath --relative-to="$DRIVER_DIR" KernelSU/kernel)" "$DRIVER_DIR/kernelsu"
+          grep -q "kernelsu" "$DRIVER_DIR/Makefile" || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> "$DRIVER_DIR/Makefile"
+          grep -q 'source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig" || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' "$DRIVER_DIR/Kconfig"
+          echo "已接入: $(readlink "$DRIVER_DIR/kernelsu") @ ${ACTUAL_COMMIT::8}"
+
+          echo "KSU_SHA=$ACTUAL_COMMIT" >> "$GITHUB_ENV"
+          echo "KSU_PINNED=$([[ -n "$EXPECT_COMMIT" ]] && echo true || echo false)" >> "$GITHUB_ENV"
+          if [[ "$IS_RESUKISU" == true && -n "$EXPECT_COMMIT" ]]; then
+            echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
+          fi
+
           cd ./KernelSU
-
-          # 如果指定了手动 hash，就切换到该提交
-          if [[ -n "$MANUAL_HASH" ]]; then
-            git fetch origin "$MANUAL_HASH" --depth=1
-            git checkout --detach FETCH_HEAD
-            SHORT_HASH=$(git rev-parse --short HEAD)
+          GIT_HASH=$(git rev-parse --short=8 HEAD)
+          if [[ "$IS_RESUKISU" == true ]]; then
+            KSU_VERSION_TAG=$(git describe --abbrev=0 --tags 2>/dev/null || true)
+          else
+            # builtin 分支与 main 历史独立、没有 tag；取 main 上最新的 tag（与上游 Makefile 取最新 release 一致）
+            KSU_VERSION_TAG=$(git describe --abbrev=0 --tags origin/main 2>/dev/null || true)
           fi
-          fi
-
-          KSU_VERSION_TAG=$(git describe --abbrev=0 --tags 2>/dev/null || true)
-          if [[ -z "$KSU_VERSION_TAG" ]]; then
-            KSU_VERSION_TAG=$(curl -fsSL "https://api.github.com/repos/${MANAGER_REPO}/releases/latest" \
-              | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' || true)
-          fi
-          if [[ -z "$KSU_VERSION_TAG" ]]; then
-            KSU_VERSION_TAG="0.0.0"
-          fi
+          KSU_VERSION_TAG="${KSU_VERSION_TAG:-0.0.0}"
           KSU_VERSION_TAG="${KSU_VERSION_TAG#v}"
-          echo "KSU_VERSION_TAG=$KSU_VERSION_TAG" >> $GITHUB_ENV
-
-          GIT_HASH=$(git rev-parse --short HEAD)
-          echo "GIT_HASH=$GIT_HASH"
-
-          # 组装版本号
-          if [[ -n "$MANUAL_HASH" ]]; then
-            USE_HASH="$SHORT_HASH"
-          else
-            USE_HASH="$GIT_HASH"
-          fi
-          if [[ -z "$CUSTOM_TAG" ]]; then
-            VERSION_FULL="v$KSU_VERSION_TAG-$USE_HASH@$BRANCH_NAME"
-          else
-            VERSION_FULL="v$KSU_VERSION_TAG-$CUSTOM_TAG@$BRANCH_NAME[$USE_HASH]"
-          fi
+          echo "KSU_VERSION_TAG=$KSU_VERSION_TAG" >> "$GITHUB_ENV"
 
           if grep -q 'KSU_FULL_NAME_FORMAT' kernel/Kbuild 2>/dev/null; then
             # ReSukiSU：版本名由 CONFIG_KSU_FULL_NAME_FORMAT 生成，不改源码（改动会让版本名带上 -dirty）
@@ -573,47 +530,40 @@ jobs:
               echo "版本名格式: %TAG_NAME%-${CUSTOM_TAG}@%REPO_NAME%[%COMMIT_SHA%]"
             fi
           else
+            # SukiSU-Ultra：Makefile 里 detached HEAD 会显示成 @HEAD，这里写成固定的版本名
+            if [[ -z "$CUSTOM_TAG" ]]; then
+              VERSION_FULL="v$KSU_VERSION_TAG-$GIT_HASH@$BRANCH_NAME"
+            else
+              VERSION_FULL="v${KSU_VERSION_TAG}-${CUSTOM_TAG}@${BRANCH_NAME}[${GIT_HASH}]"
+            fi
             ESC_VERSION_FULL=$(printf '%s' "$VERSION_FULL" | sed 's/[&|\\/]/\\&/g')
-            ESC_KSU_VERSION_TAG=$(printf '%s' "$KSU_VERSION_TAG" | sed 's/[&|\\/]/\\&/g')
-            if grep -q '^KSU_VERSION_FULL := ' kernel/Makefile; then
-              sed -i "s|^KSU_VERSION_FULL := .*|KSU_VERSION_FULL := $ESC_VERSION_FULL|" kernel/Makefile
-            elif grep -q '^REPO_OWNER :=' kernel/Makefile; then
-              awk -v full="$VERSION_FULL" '
-                /^REPO_OWNER :=/ && !done {
-                  print
-                  print ""
-                  print "KSU_VERSION_FULL := " full
-                  done=1
-                  next
-                }
-                { print }
-              ' kernel/Makefile > kernel/Makefile.tmp && mv kernel/Makefile.tmp kernel/Makefile
+            if ! grep -q '^KSU_VERSION_FULL := ' kernel/Makefile; then
+              echo "::error title=KernelSU::kernel/Makefile 中没有 KSU_VERSION_FULL，无法写入版本名"
+              exit 1
             fi
-            if grep -q '^KSU_VERSION_API := ' kernel/Makefile; then
-              sed -i "s|^KSU_VERSION_API := .*|KSU_VERSION_API := $ESC_KSU_VERSION_TAG|" kernel/Makefile
-            fi
+            sed -i "s|^KSU_VERSION_FULL := .*|KSU_VERSION_FULL := $ESC_VERSION_FULL|" kernel/Makefile
+            echo "版本名: $VERSION_FULL"
           fi
-          # 刷新 git 索引：只改了时间戳的文件不应被判定为改动（否则版本名带 -dirty）
+          # 刷新 git 索引：只改了时间戳的文件不应被判定为改动（否则 ReSukiSU 版本名带 -dirty）
           git update-index -q --refresh || true
 
-          # 预估版本号（只拉了一层历史时计数为 1，先补全历史）；编译后以内核实际打印的版本号为准
-          if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
-            git fetch -q --unshallow 2>/dev/null || echo "::warning::补全 KernelSU 提交历史失败，预估版本号可能不准"
-          fi
-          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo 0)
-          if [[ "$MANAGER_REPO" == "ReSukiSU/ReSukiSU" || "$MANAGER_REPO" == "Baka-SU/BakaSU" ]]; then
+          # 预估版本号；编译后以内核实际打印的版本号为准
+          if [[ "$IS_RESUKISU" == true ]]; then
+            COMMIT_COUNT=$(git rev-list --count HEAD)
             KSU_VERSION=$((30000 + COMMIT_COUNT + 700))
           else
+            # 与上游 Makefile 相同：40000 + main 分支提交数 - 2815（builtin 分支自身的提交数不参与计算）
+            COMMIT_COUNT=$(git rev-list --count origin/main)
             KSU_VERSION=$((40000 + COMMIT_COUNT - 2815))
           fi
           echo "预估版本号: $KSU_VERSION (提交数 $COMMIT_COUNT)"
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
-          echo "::group::最终 Makefile 中版本信息及部分调试结果预览"
-          grep -nE '^(REPO_OWNER|REPO_NAME|REPO_BRANCH|KSU_VERSION_API|KSU_VERSION_FULL|VERSION_TAG|GIT_BIN|CURL_BIN)' kernel/Makefile || true
+          echo "::group::Makefile 中的版本信息"
+          grep -nE '^(REPO_OWNER|REPO_NAME|REPO_BRANCH|KSU_VERSION_FULL|VERSION_BASE|VERSION_OFFSET)' kernel/Makefile || true
           echo "::endgroup::"
 
-      - name: Apply Patches SukiSU Ultra
+      - name: Apply SUSFS
         run: |
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
@@ -660,6 +610,10 @@ jobs:
               exit 1
             fi
             python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" post .
+            if [[ "$IS_RESUKISU" != true ]]; then
+              # SukiSU-Ultra builtin 与 SUSFS 补丁的变量类型不一致（ksu_su_compat_enabled），见脚本说明
+              python3 "$GITHUB_WORKSPACE/scripts/ksu_susfs_compat.py" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
+            fi
             echo "susfs_patch完成"
           fi
 
@@ -1063,7 +1017,10 @@ jobs:
           fi
           KPM_DIR="${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch/kpm"
           if [ "${{ github.event.inputs.KPM }}" = "KPM" ] && [ ! -d "$KPM_DIR" ]; then
-            git clone -q --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git "${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch"
+            echo "SukiSU_patch 固定提交: ${SUKISU_PATCH_COMMIT::8}"
+            git init -q "${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch"
+            git -C "${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch" fetch -q --depth=1 https://github.com/SukiSU-Ultra/SukiSU_patch.git "$SUKISU_PATCH_COMMIT"
+            git -C "${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch" -c advice.detachedHead=false checkout -q FETCH_HEAD
           fi
           KPN_DIR="${GITHUB_WORKSPACE}/patches"
           OUT_DIR="${GITHUB_WORKSPACE}/kernel_workspace/kernel_platform/out/Final-Image-Find"
@@ -1105,7 +1062,7 @@ jobs:
             [[ -f "${apks[0]}" ]] || apks=("$tmp"/*.apk)
             for apk in "${apks[@]}"; do
               name=$(basename "$apk")
-              [[ "$MANAGER_ARTIFACT" == Spoofed* ]] && name="Spoofed_${name}"
+              [[ "$MANAGER_ARTIFACT" == *[Ss]poofed* && "$name" != *[Ss]poofed* ]] && name="Spoofed_${name}"
               mv "$apk" "./AnyKernel3/$name"
               echo "已附带: $name"
             done
@@ -1125,8 +1082,8 @@ jobs:
             fi
 
             # 2) 伪装版或非固定版本：取与内核同一提交的 CI 构建，保证管理器和内核版本一致
-            RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${RESUKISU_SHA}&status=success&per_page=20" \
-              --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty')
+            RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${KSU_SHA}&status=success&per_page=20" \
+              --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty' || true)
             if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID"; then
               exit 0
             fi
@@ -1141,20 +1098,28 @@ jobs:
                 exit 0
               fi
             fi
-            echo "::warning title=Manager::没有找到与内核 ${RESUKISU_SHA::8} 对应的管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
+            echo "::warning title=Manager::没有找到与内核 ${KSU_SHA::8} 对应的管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
             exit 0
           fi
 
-          # SukiSU-Ultra：取对应分支最新一次成功的 CI 构建
-          echo "Using branch: $MANAGER_BRANCH"
-          echo "Using repo: $MANAGER_REPO"
-          echo "Downloading artifact: $MANAGER_ARTIFACT"
-          RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=$MANAGER_BRANCH&status=success&per_page=1" --jq '.workflow_runs[0].id // empty' || true)
-          if [[ -z "$RUN_ID" ]]; then
-            echo "::warning title=Manager::分支 $MANAGER_BRANCH 没有成功的 CI 运行，本次不附带管理器"
+          # SukiSU-Ultra：内核版本号按 main 分支提交数计算，与 main 分支最新一次 push 构建的管理器一致
+          echo "Using repo: $MANAGER_REPO ($MANAGER_BRANCH)，产物: $MANAGER_ARTIFACT"
+          RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?branch=${MANAGER_BRANCH}&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty' || true)
+          if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID"; then
             exit 0
           fi
-          fetch_artifact "$RUN_ID" || echo "::warning title=Manager::运行 $RUN_ID 中没有 $MANAGER_ARTIFACT，本次不附带管理器"
+          # CI 产物不存在或已过期：附带最新正式版的管理器（伪装版只能从 CI 获取，不附带普通版以免混淆）
+          if [[ "$MANAGER_ARTIFACT" == "Manager" ]]; then
+            APK=$(gh api "repos/${MANAGER_REPO}/releases/latest" \
+              --jq '.assets[] | select(.name | endswith("-release.apk")) | .browser_download_url' | head -n1 || true)
+            if [[ -n "$APK" ]]; then
+              echo "::warning title=Manager::main 分支没有可用的 CI 管理器，改为附带最新正式版: $(basename "$APK")"
+              curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
+              exit 0
+            fi
+          fi
+          echo "::warning title=Manager::没有找到 ${MANAGER_ARTIFACT}，本次不附带管理器"
 
       - name: Set zip Suffix
         id: suffix
@@ -1188,7 +1153,7 @@ jobs:
           [[ -n "${SUSFS_VER:-}" ]] && TITLE="$TITLE + SUSFS ${SUSFS_VER}"
           # 不是固定的正式版本时标记为预发布
           PRE=""
-          if [[ "$IS_RESUKISU" == "true" && -z "${RESUKISU_RELEASE:-}" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
+          if [[ "${KSU_PINNED:-false}" != "true" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
 
           ASSETS=("$ZIP")
           for apk in AnyKernel3/*.apk; do [[ -f "$apk" ]] && ASSETS+=("$apk"); done
@@ -1203,7 +1168,7 @@ jobs:
             echo
             echo "| 组件 | 版本 |"
             echo "|---|---|"
-            echo "| ${KSU_LABEL} | ${KSU_NAME:-?}（版本号 ${KSUVER}） |"
+            echo "| ${KSU_LABEL} | ${KSU_NAME:-?}（版本号 ${KSUVER}，提交 ${KSU_SHA::8}） |"
             [[ -n "${SUSFS_VER:-}" ]] && echo "| SUSFS | ${SUSFS_VER}（${SUSFS_SHA}） |"
             [[ "${{ github.event.inputs.LSM_BBG }}" == "true" ]] && echo "| Baseband-guard | ${BBG_COMMIT::8} |"
             echo "| AnyKernel3 | ${AK3_COMMIT::8} |"

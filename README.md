@@ -13,10 +13,12 @@
 | 内核 | 5.10.110（GKI，android12-5.10） |
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
-| ReSukiSU | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
+| ReSukiSU（默认） | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
+| SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，版本号 40971，管理器取自 main 分支 CI 构建） |
 | SUSFS | v2.3.0（`gki-android12-5.10` 分支 `9892175b`） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
+| KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `547ae94b`（固定提交，仅 SukiSU-Ultra + KPM 使用） |
 | 源码清单 | [`manifests/oneplus_ace_race_t.xml`](manifests/oneplus_ace_race_t.xml)，不依赖外部清单仓库 |
 | 额外配置 | `CONFIG_USER_NS=y`（部分容器、沙盒类应用需要） |
 
@@ -38,9 +40,9 @@
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU 分支。`RESUKISU` 对应 ReSukiSU；`MIUIX`/`MD3` 对应 SukiSU-Ultra 的两种界面；`_SPOOF` 为伪装版管理器（随机包名，取自与内核同一提交的 CI 构建；该构建过期后改附普通版） |
-| 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 不支持 |
-| SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS |
+| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU：`RESUKISU` 为 ReSukiSU，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
+| 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 下会自动跳过 |
+| SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
 | 构建时间 `BUILD_TIME` | `F` | 写入 `uname -v` 的时间。`F` 为实际编译时间，也可填任意时间字符串 |
 | 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
 | 内核后缀 `SUFFIX` | 空 | `uname -r` 的后缀，留空使用随机字符串 |
@@ -53,16 +55,30 @@
 | `RELEASE` | 开 | 构建成功后自动发布 Release |
 | `SPACE_NOCLEAN` / `BUILD_NOCCACHE` | 关 | 跳过磁盘清理 / 不使用 ccache |
 
-原项目中对本机型无效的选项（ZRAM、NETFILTER、风驰调度、动态清单、SUSFS 模块打包等）已移除。ReSukiSU 管理器自带 SUSFS 设置，不需要另装 SUSFS 模块。
+原项目中对本机型无效的选项（ZRAM、NETFILTER、风驰调度、动态清单、SUSFS 模块打包等）已移除。ReSukiSU / SukiSU-Ultra 管理器都自带 SUSFS 设置，不需要另装 SUSFS 模块。
+
+### ReSukiSU 与 SukiSU-Ultra
+
+| | ReSukiSU | SukiSU-Ultra |
+|---|---|---|
+| 内核源码 | Baka-SU/BakaSU `v4.2.0-rc3` | SukiSU-Ultra `builtin` 分支（专为内置 SUSFS 的 GKI 内核） |
+| 管理器 | 同一 release 的 arm64 APK；伪装版取同一提交的 CI 构建 | main 分支最近一次成功的 CI 构建（`Manager` / `Manager-spoofed`）；CI 产物过期时普通版改附最新正式版 |
+| SUSFS | 可关闭 | **必须开启**：`builtin` 分支本身不带 kprobe/系统调用钩子，钩子全部由 SUSFS 补丁提供，关闭后能编译但无法获取 root，所以工作流直接拒绝 |
+| KPM / KPN | 不支持 | 支持 |
+
+SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类型定义不一致（SUSFS 2026-04 起改为 static key），[`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) 会在打完 SUSFS 补丁后自动转换；遇到无法识别的代码结构会直接让构建失败，不会悄悄跳过。
 
 ### 自定义版本标识
 
 `KSU_META` 第二段会写进管理器显示的内核版本名，只保留字母、数字和 `._+~-`：
 
 ```
-留空      v4.2.0-rc3-239e1e88@ReSukiSU
-填 abc    v4.2.0-rc3-abc@ReSukiSU[239e1e88]
+              ReSukiSU                              SukiSU-Ultra
+留空      v4.2.0-rc3-239e1e88@ReSukiSU          v4.2.0-6c284e95@builtin
+填 abc    v4.2.0-rc3-abc@ReSukiSU[239e1e88]     v4.2.0-abc@builtin[6c284e95]
 ```
+
+第一段（分支）和第三段（提交哈希）留空时使用上表的固定版本；填写后改用指定的分支/提交，这类未经验证的构建会以**预发布**发布。
 
 刷机包名中的版本号直接取自编译日志，和管理器里显示的一致。
 
@@ -74,7 +90,7 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 
 [Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
 
-- **检查上游更新**：ReSukiSU 发布新版本，或 SUSFS、AnyKernel3、Baseband-guard 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
+- **检查上游更新**：ReSukiSU 发布新版本，或 SukiSU-Ultra `builtin` 分支、SUSFS、AnyKernel3、Baseband-guard、SukiSU_patch 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
 - **ccache 保活**：每天访问一次编译缓存，避免被 GitHub 删除。
 
 ## 缓存

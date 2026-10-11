@@ -35,7 +35,9 @@ jobs:
           CUR_SUSFS=$(grep -oP 'STABLE_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
           CUR_AK3=$(grep -oP '^ +AK3_COMMIT: \K[0-9a-f]{40}' "$WF")
           CUR_BBG=$(grep -oP '^ +BBG_COMMIT: \K[0-9a-f]{40}' "$WF")
-          echo "当前固定: ReSukiSU $CUR_TAG, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}"
+          CUR_SUKISU=$(grep -oP 'SUKISU_BUILTIN_COMMIT="\K[0-9a-f]{40}' "$WF")
+          CUR_SUKISU_PATCH=$(grep -oP '^ +SUKISU_PATCH_COMMIT: \K[0-9a-f]{40}' "$WF")
+          echo "当前固定: ReSukiSU $CUR_TAG, SukiSU-Ultra builtin ${CUR_SUKISU::8}, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}, SukiSU_patch ${CUR_SUKISU_PATCH::8}"
 
           BODY=""
           # ReSukiSU：最新发布（含预发布，跳过草稿）
@@ -60,19 +62,22 @@ jobs:
             BODY+="${COMMITS}"$'\n\n'
           fi
 
-          # AnyKernel3 / Baseband-guard：默认分支最新提交
-          check_github() {  # 名称 仓库 当前固定提交
-            local name=$1 repo=$2 cur=$3 head commits
-            head=$(gh api "repos/${repo}/commits?per_page=1" --jq '.[0].sha')
+          # SukiSU-Ultra builtin / AnyKernel3 / Baseband-guard / SukiSU_patch：分支最新提交
+          check_github() {  # 名称 仓库 当前固定提交 [分支，默认为仓库默认分支]
+            local name=$1 repo=$2 cur=$3 branch=${4:-} head commits
+            head=$(gh api "repos/${repo}/commits?per_page=1${branch:+&sha=$branch}" --jq '.[0].sha')
             [[ "$head" == "$cur" || " $REVIEWED " == *" $head "* ]] && return 0
             commits=$(gh api "repos/${repo}/compare/${cur}...${head}" \
               --jq '.commits | reverse | .[:20][] | "- `\(.sha[:7])` \(.commit.message | split("\n")[0])"')
             BODY+="### ${name}"$'\n'
-            BODY+="当前固定 \`${cur::8}\` → 最新 [\`${head::8}\`](https://github.com/${repo}/commits)"$'\n\n'
+            BODY+="当前固定 \`${cur::8}\` → 最新 [\`${head::8}\`](https://github.com/${repo}/commits/${branch})"$'\n\n'
             BODY+="${commits}"$'\n\n'
           }
+          # SukiSU-Ultra builtin 更新后需重新核对与固定 SUSFS 的接口（scripts/ksu_susfs_compat.py）
+          check_github "SukiSU-Ultra（builtin 分支）" SukiSU-Ultra/SukiSU-Ultra "$CUR_SUKISU" builtin
           check_github AnyKernel3 Numbersf/AnyKernel3 "$CUR_AK3"
           check_github Baseband-guard vc-teahouse/Baseband-guard "$CUR_BBG"
+          check_github "SukiSU_patch（KPM 工具）" SukiSU-Ultra/SukiSU_patch "$CUR_SUKISU_PATCH"
 
           ISSUE=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
           if [[ -z "$BODY" ]]; then
@@ -81,7 +86,7 @@ jobs:
             exit 0
           fi
 
-          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
           echo "$BODY"
           if [[ -z "$ISSUE" ]]; then
             gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true
