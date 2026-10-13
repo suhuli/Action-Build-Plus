@@ -15,7 +15,7 @@
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
 | ReSukiSU（默认） | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0，内核版本号设为与管理器相同的 40900） |
-| SUSFS | v2.3.0（`gki-android12-5.10` 分支 `9892175b`） |
+| SUSFS | v2.3.0（`gki-android12-5.10` 分支 `82f08351`） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
 | KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `547ae94b`（固定提交，仅 SukiSU-Ultra + KPM 使用） |

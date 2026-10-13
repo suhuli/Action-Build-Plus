@@ -15,7 +15,7 @@ GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel
 | Build | Fast build (make + ccache), falls back to the official script |
 | ReSukiSU (default) | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3) (pinned; manager APK from the same release) |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) branch @ `6c284e95` (pinned, UAPI 2; bundled manager is v4.2.0 with the same UAPI, kernel version code set to the manager's 40900) |
-| SUSFS | v2.3.0 (`gki-android12-5.10` @ `9892175b`) |
+| SUSFS | v2.3.0 (`gki-android12-5.10` @ `82f08351`) |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) @ `0fc75698` (pinned) |
 | Baseband-guard | `a54e0dc6` (pinned) |
 | KPM tool | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) @ `547ae94b` (pinned, SukiSU-Ultra + KPM only) |

@@ -713,7 +713,7 @@ jobs:
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
             # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支）
-            STABLE_SUSFS_COMMIT="9892175b4acec7ee844e113b8d02c0f4d12cdfac"
+            STABLE_SUSFS_COMMIT="82f08351fadb8b19dd6591bd14634d02ad832145"
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_META="$STABLE_SUSFS_COMMIT"
               echo "SUSFS 固定版本: $SUSFS_META"
