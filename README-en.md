@@ -40,7 +40,8 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 | `MANAGER_SOURCE` | `RESUKISU` | KernelSU variant: `RESUKISU` = ReSukiSU, `SUKISU` = SukiSU-Ultra; `_SPOOF` adds the disguised manager (random package name). SukiSU-Ultra's MIUIX / Material 3 UI is switched inside the manager settings |
 | `KPM` | `N/A` | `KPM`/`KPN` only work with SukiSU-Ultra (skipped for ReSukiSU) |
 | `SUSFS_META` | empty | Empty = pinned, tested SUSFS; commit hash or step count = roll back; `-1` = disable SUSFS (not allowed with SukiSU-Ultra) |
-| `BUILD_TIME` | `F` | Value of `uname -v`; `F` = actual build time |
+| `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | Value of `uname -v` (prefixed with `#1 SMP PREEMPT`); default matches the stock kernel, `F` = actual build time |
+| `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | Part of `uname -r` after `5.10.110-android12-`; default matches the stock kernel, clear it for a random suffix |
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
 | `LSM_BBG` | on | Baseband-guard partition write protection |
 | `CCM` | on | BBR + BBRv3 congestion control + ECN (default algorithm unchanged) |

@@ -43,9 +43,9 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 | 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU：`RESUKISU` 为 ReSukiSU，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
 | 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 下会自动跳过 |
 | SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
-| 构建时间 `BUILD_TIME` | `F` | 写入 `uname -v` 的时间。`F` 为实际编译时间，也可填任意时间字符串 |
+| 构建时间 `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | 写入 `uname -v` 的时间（自动加上 `#1 SMP PREEMPT`）。默认与原厂内核一致；`F` 为实际编译时间，也可填任意时间字符串 |
 | 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
-| 内核后缀 `SUFFIX` | 空 | `uname -r` 的后缀，留空使用随机字符串 |
+| 内核后缀 `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | `uname -r` 中 `5.10.110-android12-` 之后的部分。默认与原厂内核一致；清空则使用随机字符串 |
 | 内核等级 `SUBLEVEL` | 空 | 伪装内核小版本号，系统更新后内核源码未同步导致无法开机时使用 |
 | `LSM_BBG` | 开 | Baseband-guard，防止基带/关键分区被恶意改写 |
 | `CCM` | 开 | BBR、BBRv3 拥塞控制 + ECN（只编进内核，默认算法不变，需要时用 sysctl 或调度类模块切换） |

@@ -28,9 +28,9 @@ on:
         default: ""
       BUILD_TIME:
         type: string
-        description: "自定义构建时间(输入F使用当前UTC时间)"
+        description: "自定义构建时间(默认与原厂内核一致；输入F使用当前UTC时间)"
         required: false
-        default: "F"
+        default: "Mon Oct 24 22:45:30 UTC 2022"
       KSU_META:
         type: string
         description: "分支名(留空用默认)/自定义版本标识(留空不修改)/回退提交哈希(留空不修改)"
@@ -38,9 +38,9 @@ on:
         default: "//"
       SUFFIX:
         type: string
-        description: "自定义内核后缀(不输入使用随机字符串)"
+        description: "自定义内核后缀(默认与原厂内核一致；清空则使用随机字符串)"
         required: false
-        default: ""
+        default: "9-00011-g8efa13274425-ab9212784"
       SUBLEVEL:
         description: "自定义内核等级欺骗(SUBLEVEL)"
         required: false
