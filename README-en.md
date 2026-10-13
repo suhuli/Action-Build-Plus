@@ -6,6 +6,8 @@
 
 GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel for the **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`) and packages it as a flashable AnyKernel3 zip.
 
+> ReSukiSU was renamed **BakaSU** on 2026-10-05 ([Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)). The pinned v4.2.0-rc3 predates the rename, so the kernel version name, manager and zip still say ReSukiSU; this repo keeps the ReSukiSU option names for consistency.
+
 | Item | Value |
 |---|---|
 | Device | OnePlus Ace Racing Edition (MT6895) |
@@ -44,7 +46,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 | `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | Part of `uname -r` after `5.10.110-android12-`; default matches the stock kernel, clear it for a random suffix |
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
 | `LSM_BBG` | on | Baseband-guard partition write protection |
-| `CCM` | on | BBR + BBRv3 congestion control + ECN (default algorithm unchanged) |
+| `CCM` | on | BBR + BBRv3 congestion control (default algorithm unchanged). ECN needs no kernel option: toggle it with `sysctl net.ipv4.tcp_ecn` |
 | `RELEASE` | off | Tick to publish a GitHub Release after a successful build (off by default) |
 | `UNICODE_BYPASS` | on | Fix for invisible-Unicode path bypass |
 
@@ -58,11 +60,11 @@ Builds fail if any part of the SUSFS, Unicode or BBRv3 patches does not apply.
 
 ## Maintenance
 
-[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU, SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Run **Workflow and Cache Cleanup** to wipe caches manually.
+[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU (BakaSU), SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Since 2026-10-10 BakaSU refuses to build with SUSFS (`Please wait susfs update.`); the check warns if the latest release still has that block and reports when `main` lifts it before a new release, together with the state of [#622](https://github.com/Baka-SU/BakaSU/issues/622). Run **Workflow and Cache Cleanup** to wipe caches manually.
 
 ## Credits
 
-[Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) · [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU) · [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) · [AnyKernel3](https://github.com/osm0sis/AnyKernel3) · [Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
+[Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) · [BakaSU (formerly ReSukiSU)](https://github.com/Baka-SU/BakaSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU) · [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) · [AnyKernel3](https://github.com/osm0sis/AnyKernel3) · [Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
 
 ## License
 

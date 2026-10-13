@@ -40,6 +40,20 @@ jobs:
           echo "当前固定: ReSukiSU $CUR_TAG, SukiSU-Ultra builtin ${CUR_SUKISU::8}, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}, SukiSU_patch ${CUR_SUKISU_PATCH::8}"
 
           BODY=""
+
+          # BakaSU 从 48fa4bb（2026-10-10）起在 kernel/tools/susfs_compat.mk 里用 $(error ...) 禁止带 SUSFS 编译，
+          # 要等 SUSFS 跟上新版 KernelSU 才会去掉。返回 0 = 该引用仍禁止，1 = 没有限制；读取失败时让任务报错
+          susfs_blocked() {
+            local code
+            code=$(curl -sSL -o "$RUNNER_TEMP/susfs_compat.mk" -w '%{http_code}' \
+              "https://raw.githubusercontent.com/${RESUKISU_REPO}/$1/kernel/tools/susfs_compat.mk")
+            case "$code" in
+              200) grep -qE '^[[:space:]]*\$\(error' "$RUNNER_TEMP/susfs_compat.mk" ;;
+              404) return 1 ;;
+              *) echo "::error::读取 $1 的 susfs_compat.mk 失败（HTTP $code）"; exit 1 ;;
+            esac
+          }
+
           # ReSukiSU：最新发布（含预发布，跳过草稿）
           read -r NEW_TAG NEW_PRE NEW_URL < <(gh api "repos/${RESUKISU_REPO}/releases?per_page=10" \
             --jq '[.[] | select(.draft | not)][0] | "\(.tag_name) \(.prerelease) \(.html_url)"')
@@ -47,6 +61,20 @@ jobs:
             KIND=$([[ "$NEW_PRE" == true ]] && echo "预发布" || echo "正式版")
             BODY+="### ReSukiSU ${NEW_TAG}（${KIND}）"$'\n'
             BODY+="当前固定 \`${CUR_TAG}\` → 最新 [\`${NEW_TAG}\`](${NEW_URL})"$'\n\n'
+            if susfs_blocked "$NEW_TAG"; then
+              BODY+="> ⚠️ \`${NEW_TAG}\` 的源码仍禁止带 SUSFS 编译（\`Please wait susfs update.\`），构建会失败，暂勿升级。"$'\n\n'
+            fi
+          elif ! susfs_blocked main; then
+            # 还没有新 release，但 main 已经解除限制：提醒一次，便于提前测试
+            case "$(gh api "repos/${RESUKISU_REPO}/issues/622" --jq '.state' 2>/dev/null)" in
+              open) ISSUE_622="未修复（open）" ;;
+              closed) ISSUE_622="已关闭（closed），请看 issue 里是否已修复" ;;
+              *) ISSUE_622="未知" ;;
+            esac
+            BODY+="### BakaSU main 已解除 SUSFS 编译限制"$'\n'
+            BODY+="main 分支的 \`kernel/tools/susfs_compat.mk\` 里已经没有 \`Please wait susfs update.\`，但还没有新 release。"
+            BODY+="可以用 \`KSU_META=//<main 提交哈希>\` 先编译测试，或等正式发布。"$'\n\n'
+            BODY+="[#622](https://github.com/${RESUKISU_REPO}/issues/622)（5.10 内核开启隐藏 SELinux 后终端 exec 被拒）当前状态：${ISSUE_622}"$'\n\n'
           fi
 
           # SUSFS：分支最新提交

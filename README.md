@@ -6,6 +6,8 @@
 
 用 GitHub Actions 为 **一加 Ace 竞速版**（`oneplus_ace_race_t`）编译带 **ReSukiSU / SukiSU-Ultra + SUSFS** 的内核，产物为可直接刷入的 AnyKernel3 刷机包。
 
+> ReSukiSU 已于 2026-10-05 更名为 **BakaSU**（仓库 [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)）。固定的 v4.2.0-rc3 在改名之前发布，内核版本名、管理器和刷机包里仍显示 ReSukiSU；为保持一致，本仓库的选项名和文档暂时沿用 ReSukiSU。
+
 | 项目 | 值 |
 |---|---|
 | 机型 | 一加 Ace 竞速版（MT6895） |
@@ -48,7 +50,7 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 | 内核后缀 `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | `uname -r` 中 `5.10.110-android12-` 之后的部分。默认与原厂内核一致；清空则使用随机字符串 |
 | 内核等级 `SUBLEVEL` | 空 | 伪装内核小版本号，系统更新后内核源码未同步导致无法开机时使用 |
 | `LSM_BBG` | 开 | Baseband-guard，防止基带/关键分区被恶意改写 |
-| `CCM` | 开 | BBR、BBRv3 拥塞控制 + ECN（只编进内核，默认算法不变，需要时用 sysctl 或调度类模块切换） |
+| `CCM` | 开 | BBR、BBRv3 拥塞控制（只编进内核，默认算法不变，需要时用 sysctl 或调度类模块切换）。ECN 不需要编译选项，任何内核都可以用 `sysctl net.ipv4.tcp_ecn` 开关 |
 | `UNICODE_BYPASS` | 开 | 修复用 Unicode 不可见字符绕过路径检测的漏洞 |
 | `DROID_SPACES` / `RE_KERNEL` | 关 | Droid Spaces 容器支持 / Re:Kernel 墓碑支持 |
 | `SUSFS_DEV` | 关 | 使用 SUSFS 开发分支，仅测试用 |
@@ -93,7 +95,8 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 
 [Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
 
-- **检查上游更新**：ReSukiSU 发布新版本，或 SukiSU-Ultra `builtin` 分支、SUSFS、AnyKernel3、Baseband-guard、SukiSU_patch 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
+- **检查上游更新**：ReSukiSU（BakaSU）发布新版本，或 SukiSU-Ultra `builtin` 分支、SUSFS、AnyKernel3、Baseband-guard、SukiSU_patch 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
+- **SUSFS 编译限制**：BakaSU 从 2026-10-10（48fa4bb）起在源码里禁止带 SUSFS 编译（`Please wait susfs update.`），要等 SUSFS 跟上新版 KernelSU 后才会解除。维护任务会检查最新 release 是否仍有这个限制（有的话在 Issue 里提示暂勿升级），并在 main 分支解除限制、但还没有新 release 时提醒，同时附上 [#622](https://github.com/Baka-SU/BakaSU/issues/622)（5.10 内核开启隐藏 SELinux 后终端 `exec` 被拒）的状态。
 - **ccache 保活**：每天访问一次编译缓存，避免被 GitHub 删除。
 
 ## 缓存
@@ -105,7 +108,7 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 ## 致谢
 
 - [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build)：原始工作流与补丁
-- [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU)
+- [BakaSU（原 ReSukiSU）](https://github.com/Baka-SU/BakaSU) · [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) · [KernelSU](https://github.com/tiann/KernelSU)
 - [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
 - [osm0sis/AnyKernel3](https://github.com/osm0sis/AnyKernel3) · [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3)
 - [vc-teahouse/Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)

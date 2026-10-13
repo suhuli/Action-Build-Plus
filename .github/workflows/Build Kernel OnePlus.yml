@@ -52,7 +52,7 @@ on:
         default: true
       CCM:
         type: boolean
-        description: "是否启用网络拥塞控制与管理机制(BBRv1+BBRv3+ECN)？"
+        description: "是否编入 BBR / BBRv3 拥塞控制算法？（不改默认算法）"
         required: true
         default: true
       UNICODE_BYPASS:
@@ -103,6 +103,8 @@ jobs:
   build:
     name: ${{ startsWith(github.event.inputs.MANAGER_SOURCE, 'SUKISU') && (github.event.inputs.KPM == 'KPM' && '[SukiSU][KPM] ' || github.event.inputs.KPM == 'KPN' && '[SukiSU][KPN] ' || '[SukiSU] ') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '[BBG] ' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && '[DS] ' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '[REKER] ' || '' }}OnePlus Ace Race T ${{ github.event.inputs.SUFFIX }}
     runs-on: ubuntu-latest
+    # 历次成功构建 10～25 分钟；卡住时 90 分钟后自动终止，而不是占满默认的 6 小时
+    timeout-minutes: 90
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       # 与官方 GKI 构建（kernel/build/_setup_env.sh）一致，/proc/version 显示 build-user@build-host 而不是 runner@runnervm...
@@ -882,7 +884,7 @@ jobs:
           echo "CONFIG_TMPFS_XATTR=y" >> "$CONFIG_FILE"
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$CONFIG_FILE"
 
-          # BBR & ECN配置*
+          # BBR 配置*（ECN 不需要编译选项：任何内核都可用 sysctl net.ipv4.tcp_ecn 开关）
           if [ "${{ github.event.inputs.CCM }}" = "true" ]; then
             echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_BBR=y" >> "$CONFIG_FILE"
@@ -893,9 +895,6 @@ jobs:
             echo "CONFIG_TCP_CONG_BIC=n" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_WESTWOOD=n" >> "$CONFIG_FILE"
             echo "CONFIG_TCP_CONG_HTCP=n" >> "$CONFIG_FILE"
-            echo "CONFIG_IP_ECN=y" >> "$CONFIG_FILE"
-            echo "CONFIG_TCP_ECN=y" >> "$CONFIG_FILE"
-            echo "CONFIG_IPV6_ECN=y" >> "$CONFIG_FILE"
             echo "CONFIG_IP_NF_TARGET_ECN=y" >> "$CONFIG_FILE"
           fi
 
@@ -916,7 +915,6 @@ jobs:
             echo "CONFIG_DEVTMPFS=y" >> "$CONFIG_FILE"
             echo "CONFIG_PID_NS=y" >> "$CONFIG_FILE"
             echo "CONFIG_POSIX_MQUEUE=y" >> "$CONFIG_FILE"
-            echo "CONFIG_NETFILTER_XT_TARGET_REJECT=y" >> "$CONFIG_FILE"
             echo "CONFIG_NETFILTER_XT_TARGET_LOG=y" >> "$CONFIG_FILE"
             echo "CONFIG_NETFILTER_XT_MATCH_RECENT=y" >> "$CONFIG_FILE"
           fi
