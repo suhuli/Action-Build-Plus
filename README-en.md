@@ -60,7 +60,7 @@ Builds fail if any part of the SUSFS, Unicode or BBRv3 patches does not apply.
 
 ## Maintenance
 
-[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU (BakaSU), SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Since 2026-10-10 BakaSU refuses to build with SUSFS (`Please wait susfs update.`); the check warns if the latest release still has that block and reports when `main` lifts it before a new release, together with the state of [#622](https://github.com/Baka-SU/BakaSU/issues/622). Run **Workflow and Cache Cleanup** to wipe caches manually.
+[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU (BakaSU), SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Since 2026-10-10 BakaSU refuses to build with SUSFS (`Please wait susfs update.`); the check warns if the latest release still has that block and reports when `main` lifts it before a new release, together with the state of [#622](https://github.com/Baka-SU/BakaSU/issues/622) (terminal `exec` denied with SELinux hiding on 5.10; fixed on BakaSU `main` on 2026-10-13, but the fix is not in v4.2.0-rc3 and cannot be picked up until the next release lifts the SUSFS block). Run **Workflow and Cache Cleanup** to wipe caches manually.
 
 ## Credits
 

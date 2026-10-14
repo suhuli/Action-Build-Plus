@@ -96,7 +96,7 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 [Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
 
 - **检查上游更新**：ReSukiSU（BakaSU）发布新版本，或 SukiSU-Ultra `builtin` 分支、SUSFS、AnyKernel3、Baseband-guard、SukiSU_patch 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
-- **SUSFS 编译限制**：BakaSU 从 2026-10-10（48fa4bb）起在源码里禁止带 SUSFS 编译（`Please wait susfs update.`），要等 SUSFS 跟上新版 KernelSU 后才会解除。维护任务会检查最新 release 是否仍有这个限制（有的话在 Issue 里提示暂勿升级），并在 main 分支解除限制、但还没有新 release 时提醒，同时附上 [#622](https://github.com/Baka-SU/BakaSU/issues/622)（5.10 内核开启隐藏 SELinux 后终端 `exec` 被拒）的状态。
+- **SUSFS 编译限制**：BakaSU 从 2026-10-10（48fa4bb）起在源码里禁止带 SUSFS 编译（`Please wait susfs update.`），要等 SUSFS 跟上新版 KernelSU 后才会解除。维护任务会检查最新 release 是否仍有这个限制（有的话在 Issue 里提示暂勿升级），并在 main 分支解除限制、但还没有新 release 时提醒，同时附上 [#622](https://github.com/Baka-SU/BakaSU/issues/622)（5.10 内核开启隐藏 SELinux 后终端 `exec` 被拒）的状态。该问题已于 2026-10-13 在 BakaSU main 修复（sidtab 重复分配 SID，[#623](https://github.com/Baka-SU/BakaSU/pull/623) 等），但修复不在 v4.2.0-rc3 里，要等下一个 release 且 SUSFS 限制解除后才能升级。
 - **ccache 保活**：每天访问一次编译缓存，避免被 GitHub 删除。
 
 ## 缓存
