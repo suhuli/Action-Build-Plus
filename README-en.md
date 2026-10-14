@@ -6,7 +6,7 @@
 
 GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel for the **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`) and packages it as a flashable AnyKernel3 zip.
 
-> ReSukiSU was renamed **BakaSU** on 2026-10-05 ([Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)). The pinned v4.2.0-rc3 predates the rename, so the kernel version name, manager and zip still say ReSukiSU; this repo keeps the ReSukiSU option names for consistency.
+> ReSukiSU was renamed **BakaSU** on 2026-10-05 ([Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)). The default now pins post-rename commit `5b76b884` (35222 / UAPI 5), pairs the manager from the same commit CI, and labels zips BakaSU. Legacy input keys `RESUKISU` / `RESUKISU_SPOOF` are kept for compatibility.
 
 | Item | Value |
 |---|---|
@@ -15,7 +15,7 @@ GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel
 | Kernel | 5.10.110 (GKI, android12-5.10) |
 | Source | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | Build | Fast build (make + ccache), falls back to the official script |
-| ReSukiSU (default) | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3) (pinned; manager APK from the same release) |
+| BakaSU (default; RESUKISU input) | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c) (35222 / UAPI 5; v4.2.0-rc3 label; manager from the same commit CI, not the older release APK) |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) branch @ `6c284e95` (pinned, UAPI 2; bundled manager is v4.2.0 with the same UAPI, kernel version code set to the manager's 40900) |
 | SUSFS | v2.3.0 (`gki-android12-5.10` @ `82f08351`) |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) @ `0fc75698` (pinned) |
@@ -28,8 +28,8 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 ## Usage
 
 1. Go to **Actions → Build OnePlus Ace Race T Kernel → Run workflow**.
-2. The defaults are the recommended combination; just click **Run workflow**.
-3. After ~15–20 minutes download the flashable zip (with the matching manager APK) from **Artifacts** at the bottom of the run page (unzip once). Nothing is published by default; tick `RELEASE` before running to publish a [Release](https://github.com/suhuli/Action-Build-Plus/releases) with the zip, manager APK and SHA-256.
+2. The defaults pin BakaSU `5b76b884` + SUSFS. This new combination still needs device validation; back up `boot` before flashing. A successful build is not proof of runtime stability.
+3. After ~15–20 minutes download the flashable zip (with a matching manager APK only when that commit CI artifact is available and versionCode matches) from **Artifacts** at the bottom of the run page (unzip once). Nothing is published by default; tick `RELEASE` before running to publish a [Release](https://github.com/suhuli/Action-Build-Plus/releases) with the zip, manager APK and SHA-256.
 4. Flash the zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
 
 > [!CAUTION]
@@ -41,7 +41,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 |---|---|---|
 | `MANAGER_SOURCE` | `RESUKISU` | KernelSU variant: `RESUKISU` = ReSukiSU, `SUKISU` = SukiSU-Ultra; `_SPOOF` adds the disguised manager (random package name). SukiSU-Ultra's MIUIX / Material 3 UI is switched inside the manager settings |
 | `KPM` | `N/A` | `KPM`/`KPN` only work with SukiSU-Ultra (skipped for ReSukiSU) |
-| `SUSFS_META` | empty | Empty = pinned, tested SUSFS; commit hash or step count = roll back; `-1` = disable SUSFS (not allowed with SukiSU-Ultra) |
+| `SUSFS_META` | empty | Empty = pinned SUSFS (the new BakaSU combination still requires device validation); commit hash or step count = roll back; `-1` = disable SUSFS (not allowed with SukiSU-Ultra) |
 | `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | Value of `uname -v` (prefixed with `#1 SMP PREEMPT`); default matches the stock kernel, `F` = actual build time |
 | `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | Part of `uname -r` after `5.10.110-android12-`; default matches the stock kernel, clear it for a random suffix |
 | `KSU_META` | `//` | `branch/custom-tag/commit`, each part optional, keep both slashes |
@@ -58,9 +58,17 @@ Options that had no effect on this device (ZRAM, NETFILTER, HMBIRD, dynamic mani
 
 Builds fail if any part of the SUSFS, Unicode or BBRv3 patches does not apply.
 
+## BakaSU pin and rollback
+
+Both normal and spoofed managers are selected from the same `5b76b884` CI commit and checked against the kernel versionCode. If no matching artifact exists, no manager is bundled; the workflow never substitutes the old release or latest main manager for this pin.
+
+This is the last mainline commit before the SUSFS build block, not a guarantee of bug-free operation. It lacks the later SELinux-hiding timing side-channel fix. The workflow preserves the upstream block and fails early for blocked custom commits. The new BakaSU + 5.10 + SUSFS combination needs compilation and device testing.
+
+Keep `KSU_META=//` for the new pin. To build the previous source, use `//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`; only that source is eligible for the old release APK. Restore a known-good backed-up `boot` if flashing fails.
+
 ## Maintenance
 
-[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU (BakaSU), SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Since 2026-10-10 BakaSU refuses to build with SUSFS (`Please wait susfs update.`); the check warns if the latest release still has that block and reports when `main` lifts it before a new release, together with the state of [#622](https://github.com/Baka-SU/BakaSU/issues/622) (terminal `exec` denied with SELinux hiding on 5.10; fixed on BakaSU `main` on 2026-10-13, but the fix is not in v4.2.0-rc3 and cannot be picked up until the next release lifts the SUSFS block). Run **Workflow and Cache Cleanup** to wipe caches manually.
+[Daily Maintenance](.github/workflows/maintenance.yml) runs every day: it opens an `upstream-update` issue when ReSukiSU (BakaSU), SukiSU-Ultra `builtin`, SUSFS, AnyKernel3, Baseband-guard or SukiSU_patch has a newer version than the pinned one, and touches the ccache so GitHub does not evict it. Since 2026-10-10 BakaSU refuses to build with SUSFS (`Please wait susfs update.`); the check warns if the latest release still has that block and reports when `main` lifts it before a new release, together with the state of [#622](https://github.com/Baka-SU/BakaSU/issues/622) (terminal `exec` denied with SELinux hiding on older 5.4/4.19/4.14 trees, not directly applicable to this 5.10 kernel; fixed on BakaSU `main` on 2026-10-13, but absent from pinned `5b76b884`; assess compatibility and any required backport before upgrading). Run **Workflow and Cache Cleanup** to wipe caches manually.
 
 ## Credits
 

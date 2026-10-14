@@ -32,12 +32,13 @@ jobs:
           set -euo pipefail
           WF=".github/workflows/Build Kernel OnePlus.yml"
           CUR_TAG=$(grep -oP 'RESUKISU_TAG="\K[^"]+' "$WF")
+          CUR_RESUKISU=$(grep -oP 'RESUKISU_COMMIT="\K[0-9a-f]{40}' "$WF")
           CUR_SUSFS=$(grep -oP 'STABLE_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
           CUR_AK3=$(grep -oP '^ +AK3_COMMIT: \K[0-9a-f]{40}' "$WF")
           CUR_BBG=$(grep -oP '^ +BBG_COMMIT: \K[0-9a-f]{40}' "$WF")
           CUR_SUKISU=$(grep -oP 'SUKISU_BUILTIN_COMMIT="\K[0-9a-f]{40}' "$WF")
           CUR_SUKISU_PATCH=$(grep -oP '^ +SUKISU_PATCH_COMMIT: \K[0-9a-f]{40}' "$WF")
-          echo "当前固定: ReSukiSU $CUR_TAG, SukiSU-Ultra builtin ${CUR_SUKISU::8}, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}, SukiSU_patch ${CUR_SUKISU_PATCH::8}"
+          echo "当前固定: BakaSU ${CUR_RESUKISU::8}（标签基线 $CUR_TAG）, SukiSU-Ultra builtin ${CUR_SUKISU::8}, SUSFS ${CUR_SUSFS::8}, AnyKernel3 ${CUR_AK3::8}, Baseband-guard ${CUR_BBG::8}, SukiSU_patch ${CUR_SUKISU_PATCH::8}"
 
           BODY=""
 
@@ -60,7 +61,7 @@ jobs:
           if [[ "$NEW_TAG" != "$CUR_TAG" ]]; then
             KIND=$([[ "$NEW_PRE" == true ]] && echo "预发布" || echo "正式版")
             BODY+="### ReSukiSU ${NEW_TAG}（${KIND}）"$'\n'
-            BODY+="当前固定 \`${CUR_TAG}\` → 最新 [\`${NEW_TAG}\`](${NEW_URL})"$'\n\n'
+            BODY+="当前固定 BakaSU \`${CUR_RESUKISU::8}\`（标签基线 \`${CUR_TAG}\`）→ 最新 [\`${NEW_TAG}\`](${NEW_URL})"$'\n\n'
             if susfs_blocked "$NEW_TAG"; then
               BODY+="> ⚠️ \`${NEW_TAG}\` 的源码仍禁止带 SUSFS 编译（\`Please wait susfs update.\`），构建会失败，暂勿升级。"$'\n\n'
             fi
@@ -74,7 +75,13 @@ jobs:
             BODY+="### BakaSU main 已解除 SUSFS 编译限制"$'\n'
             BODY+="main 分支的 \`kernel/tools/susfs_compat.mk\` 里已经没有 \`Please wait susfs update.\`，但还没有新 release。"
             BODY+="可以用 \`KSU_META=//<main 提交哈希>\` 先编译测试，或等正式发布。"$'\n\n'
-            BODY+="[#622](https://github.com/${RESUKISU_REPO}/issues/622)（5.10 内核开启隐藏 SELinux 后终端 exec 被拒）当前状态：${ISSUE_622}"$'\n\n'
+            BODY+="[#622](https://github.com/${RESUKISU_REPO}/issues/622)（旧内核开启隐藏 SELinux 后终端 exec 被拒；上游说明为 5.4/4.19/4.14，不能直接套用到 5.10）当前状态：${ISSUE_622}"$'\n\n'
+          fi
+
+          MAIN_SHA=$(gh api "repos/${RESUKISU_REPO}/commits/main" --jq '.sha')
+          if [[ "$MAIN_SHA" != "$CUR_RESUKISU" ]] && susfs_blocked "$MAIN_SHA"; then
+            BODY+="### BakaSU 主线暂勿跟进"$'\n'
+            BODY+="当前固定 \`${CUR_RESUKISU::8}\`；最新主线 \`${MAIN_SHA::8}\` 仍有 SUSFS 编译限制，保持固定提交，不自动升级。"$'\n\n'
           fi
 
           # SUSFS：分支最新提交
@@ -114,7 +121,7 @@ jobs:
             exit 0
           fi
 
-          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_TAG\` / \`RESUKISU_COMMIT\` / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_COMMIT\`（只有切回 release 源码才同步 \`RESUKISU_TAG\` / \`RESUKISU_RELEASE_COMMIT\`） / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
           echo "$BODY"
           if [[ -z "$ISSUE" ]]; then
             gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true

@@ -447,9 +447,11 @@ jobs:
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
           DEFAULT_KSU_BRANCH="${{ steps.manager.outputs.default_ksu_branch }}"
           KSU_META="${{ github.event.inputs.KSU_META }}"
-          # 固定版本（maintenance.yml 每天检查上游；更新时同时修改 tag 和对应提交）
+          # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
+          # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"
+          RESUKISU_COMMIT="5b76b884c75f729a220bb317aa4a4fc78f0e0e9c"  # BakaSU，35222/UAPI 5；SUSFS 限制之前的最后一个主线提交
+          RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="6c284e957feaa9a388a9f1c37dc4ec80d95e434b"  # SukiSU-Ultra builtin 分支，已核对与固定的 SUSFS 接口一致
 
           # 必须包含两个分隔符（至少三个字段）
@@ -482,7 +484,7 @@ jobs:
           elif [[ -n "$USER_BRANCH" ]]; then
             KSU_REF="origin/$USER_BRANCH"
           elif [[ "$IS_RESUKISU" == true ]]; then
-            KSU_REF="$RESUKISU_TAG"; EXPECT_COMMIT="$RESUKISU_COMMIT"
+            KSU_REF="$RESUKISU_COMMIT"; EXPECT_COMMIT="$RESUKISU_COMMIT"
           else
             KSU_REF="$SUKISU_BUILTIN_COMMIT"; EXPECT_COMMIT="$SUKISU_BUILTIN_COMMIT"
           fi
@@ -503,6 +505,13 @@ jobs:
             exit 1
           fi
 
+          # 不删除/绕过上游 SUSFS 编译限制；自定义新提交时提前给出清晰错误。
+          if [[ "$IS_RESUKISU" == true && "${{ github.event.inputs.SUSFS_META }}" != "-1" ]] &&
+             grep -qE '^[[:space:]]*\$\(error[[:space:]]+Please wait susfs update\.' KernelSU/kernel/tools/susfs_compat.mk; then
+            echo "::error title=BakaSU/SUSFS::${ACTUAL_COMMIT::8} 的上游源码禁止带 SUSFS 编译；请使用固定的 5b76b884 或等待上游解除限制，不要删除错误检查"
+            exit 1
+          fi
+
           # 接入内核（等同于官方 setup.sh 的接入步骤）
           DRIVER_DIR="common/drivers"; [[ -d "$DRIVER_DIR" ]] || DRIVER_DIR="drivers"
           ln -sfn "$(realpath --relative-to="$DRIVER_DIR" KernelSU/kernel)" "$DRIVER_DIR/kernelsu"
@@ -512,7 +521,9 @@ jobs:
 
           echo "KSU_SHA=$ACTUAL_COMMIT" >> "$GITHUB_ENV"
           echo "KSU_PINNED=$([[ -n "$EXPECT_COMMIT" ]] && echo true || echo false)" >> "$GITHUB_ENV"
-          if [[ "$IS_RESUKISU" == true && -n "$EXPECT_COMMIT" ]]; then
+          # 只有源码确实对应 release，才可附带该 release 的管理器。
+          # 默认 5b76b884 必须取同一提交的 CI，不能误附 239e1e88 的 APK。
+          if [[ "$IS_RESUKISU" == true && "$ACTUAL_COMMIT" == "$RESUKISU_RELEASE_COMMIT" ]]; then
             echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
           fi
 
@@ -1194,7 +1205,7 @@ jobs:
           # 下载指定 CI 运行中的管理器构建产物
           ATTACHED=()
           fetch_artifact() {  # 运行ID [产物名...]（默认 $MANAGER_ARTIFACT）
-            local run=$1 url="" art=""; shift
+            local run=$1 url="" art="" code="" name=""; shift
             local names=("$@"); [[ ${#names[@]} -gt 0 ]] || names=("$MANAGER_ARTIFACT")
             for art in "${names[@]}"; do
               url=$(gh api "repos/${MANAGER_REPO}/actions/runs/${run}/artifacts?per_page=100" \
@@ -1209,13 +1220,24 @@ jobs:
             unzip -oj "${art}.zip" "*.apk" -d "$tmp" >/dev/null
             local apks=("$tmp"/*arm64-v8a*.apk)
             [[ -f "${apks[0]}" ]] || apks=("$tmp"/*.apk)
+            local attached_before=${#ATTACHED[@]}
             for apk in "${apks[@]}"; do
+              [[ -f "$apk" ]] || continue
+              if [[ "$IS_RESUKISU" == "true" ]]; then
+                code=$(python3 "$GITHUB_WORKSPACE/scripts/apk_version_code.py" "$apk" 2>/dev/null || true)
+                if [[ "$code" != "$KSUVER" ]]; then
+                  echo "::warning title=Manager::拒绝附带版本号 ${code:-未知} 的管理器；当前 BakaSU 内核版本号是 $KSUVER"
+                  continue
+                fi
+              fi
               name=$(basename "$apk")
               [[ "$art" == *[Ss]poofed* && "$name" != *[Ss]poofed* ]] && name="Spoofed_${name}"
               mv "$apk" "./AnyKernel3/$name"
               ATTACHED+=("$name")
               echo "已附带: $name"
             done
+            rm -rf "$tmp"
+            [[ ${#ATTACHED[@]} -gt $attached_before ]]
           }
 
           if [[ "$IS_RESUKISU" == "true" ]]; then
@@ -1231,9 +1253,9 @@ jobs:
               echo "::warning title=Manager::${RESUKISU_RELEASE} 没有找到 arm64 管理器，改用同一提交的 CI 构建"
             fi
 
-            # 2) 伪装版或非固定版本：取与内核同一提交的 CI 构建，保证管理器和内核版本一致
+            # 2) BakaSU 固定提交（包括默认 5b76b884）及自定义版本：只取同一提交的 CI 构建
             RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${KSU_SHA}&status=success&per_page=20" \
-              --jq '[.workflow_runs[] | select(.event == "push")][0].id // empty' || true)
+              --jq "[.workflow_runs[] | select(.event == \"push\" and .head_sha == \"$KSU_SHA\")][0].id // empty" || true)
             if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID"; then
               exit 0
             fi
@@ -1271,7 +1293,7 @@ jobs:
       - name: Pack AnyKernel3 Zip
         id: pack_ak3
         run: |
-          ZIP_NAME="AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}.zip"
+          ZIP_NAME="AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'BakaSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}.zip"
           cd ./AnyKernel3
           zip -r "../${ZIP_NAME}" ./*
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
@@ -1279,7 +1301,7 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
         with:
-          name: AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}
+          name: AnyKernel3_${{ env.IS_RESUKISU == 'true' && 'BakaSU' || 'SukiSUUltra' }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}_${{ env.TKERNEL_VERSION }}${{ steps.suffix.outputs.value }}
           path: ./${{ steps.pack_ak3.outputs.zip_name }}
 
       - name: Publish Release
@@ -1290,7 +1312,7 @@ jobs:
           INPUT_JSON: ${{ toJSON(github.event.inputs) }}
         run: |
           TAG="build-${{ github.run_number }}"
-          KSU_LABEL="${{ env.IS_RESUKISU == 'true' && 'ReSukiSU' || 'SukiSU-Ultra' }}"
+          KSU_LABEL="${{ env.IS_RESUKISU == 'true' && 'BakaSU' || 'SukiSU-Ultra' }}"
           TITLE="#${{ github.run_number }} ${KSU_LABEL} ${KSU_NAME:-$KSUVER}"
           [[ -n "${SUSFS_VER:-}" ]] && TITLE="$TITLE + SUSFS ${SUSFS_VER}"
           # 不是固定的正式版本时标记为预发布

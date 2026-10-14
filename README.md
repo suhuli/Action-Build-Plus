@@ -6,7 +6,7 @@
 
 用 GitHub Actions 为 **一加 Ace 竞速版**（`oneplus_ace_race_t`）编译带 **ReSukiSU / SukiSU-Ultra + SUSFS** 的内核，产物为可直接刷入的 AnyKernel3 刷机包。
 
-> ReSukiSU 已于 2026-10-05 更名为 **BakaSU**（仓库 [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)）。固定的 v4.2.0-rc3 在改名之前发布，内核版本名、管理器和刷机包里仍显示 ReSukiSU；为保持一致，本仓库的选项名和文档暂时沿用 ReSukiSU。
+> ReSukiSU 已于 2026-10-05 更名为 **BakaSU**（仓库 [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)）。默认源码现固定到改名后的 `5b76b884`（35222 / UAPI 5），管理器取同一提交的 CI 构建，刷机包使用 BakaSU 名称。为兼容已有构建参数，选项名仍沿用 `RESUKISU` / `RESUKISU_SPOOF`。
 
 | 项目 | 值 |
 |---|---|
@@ -15,7 +15,7 @@
 | 内核 | 5.10.110（GKI，android12-5.10） |
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
-| ReSukiSU（默认） | [v4.2.0-rc3](https://github.com/Baka-SU/BakaSU/releases/tag/v4.2.0-rc3)（固定版本，管理器取自同一 release） |
+| BakaSU（默认，选项名 RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0，内核版本号设为与管理器相同的 40900） |
 | SUSFS | v2.3.0（`gki-android12-5.10` 分支 `82f08351`） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
@@ -29,8 +29,8 @@
 ## 使用
 
 1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
-2. 默认参数就是推荐组合，直接点 **Run workflow** 即可；需要时再调整。
-3. 等待约 15～20 分钟（缓存未命中时更久）。构建成功后在运行页面底部的 **Artifacts** 下载刷机包（含配套管理器 APK）。默认**不会**发布 Release；需要发布时运行前勾选 `RELEASE`，会发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、管理器 APK 和 SHA-256。
+2. 默认参数固定使用 BakaSU `5b76b884` + SUSFS；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
+3. 等待约 15～20 分钟（缓存未命中时更久）。构建成功后在运行页面底部的 **Artifacts** 下载刷机包（匹配的管理器 CI 产物可用时附带 APK；不可用或版本号不匹配时不附带）。默认**不会**发布 Release；需要发布时运行前勾选 `RELEASE`，会发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、管理器 APK 和 SHA-256。
 4. 用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入刷机包，或在 Recovery 中刷入。
 
 Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
@@ -44,7 +44,7 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 |---|---|---|
 | 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU：`RESUKISU` 为 ReSukiSU，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
 | 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 下会自动跳过 |
-| SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的已验证版本；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
+| SUSFS 版本 `SUSFS_META` | 空 | 留空使用工作流固定的 SUSFS 提交（与新 BakaSU 的组合仍待实机验证）；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
 | 构建时间 `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | 写入 `uname -v` 的时间（自动加上 `#1 SMP PREEMPT`）。默认与原厂内核一致；`F` 为实际编译时间，也可填任意时间字符串 |
 | 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
 | 内核后缀 `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | `uname -r` 中 `5.10.110-android12-` 之后的部分。默认与原厂内核一致；清空则使用随机字符串 |
@@ -63,8 +63,8 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 
 | | ReSukiSU | SukiSU-Ultra |
 |---|---|---|
-| 内核源码 | Baka-SU/BakaSU `v4.2.0-rc3` | SukiSU-Ultra `builtin` 分支（专为内置 SUSFS 的 GKI 内核） |
-| 管理器 | 同一 release 的 arm64 APK；伪装版取同一提交的 CI 构建 | 按内核 **UAPI 版本**自动挑选：先找 UAPI 相同的最新正式版（伪装版取该版本的 CI 构建），再看 main 最新 CI；都不匹配就不附带。内核 KernelSU 版本号设为所选管理器的 versionCode |
+| 内核源码 | Baka-SU/BakaSU `5b76b884`（标签 v4.2.0-rc3） | SukiSU-Ultra `builtin` 分支（专为内置 SUSFS 的 GKI 内核） |
+| 管理器 | 普通版/伪装版都取 `5b76b884` 同一提交的 CI 构建，并校验 APK versionCode 与内核一致；找不到就不附带，不回退到旧 release 或最新 main APK | 按内核 **UAPI 版本**自动挑选：先找 UAPI 相同的最新正式版（伪装版取该版本的 CI 构建），再看 main 最新 CI；都不匹配就不附带。内核 KernelSU 版本号设为所选管理器的 versionCode |
 | SUSFS | 可关闭 | **必须开启**：`builtin` 分支本身不带 kprobe/系统调用钩子，钩子全部由 SUSFS 补丁提供，关闭后能编译但无法获取 root，所以工作流直接拒绝 |
 | KPM / KPN | 不支持 | 支持 |
 
@@ -73,14 +73,20 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 
 SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类型定义不一致（SUSFS 2026-04 起改为 static key），[`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) 会在打完 SUSFS 补丁后自动转换；遇到无法识别的代码结构会直接让构建失败，不会悄悄跳过。
 
+### 固定提交的限制与回退
+
+`5b76b884` 是上游加入 SUSFS 编译限制前的最后一个主线提交，不等于已确认无缺陷。它不包含后续 SELinux 隐藏时间侧信道修复，且本项目的新 BakaSU + 5.10 + SUSFS 组合仍需构建及实机验证。工作流保留上游限制，遇到受限的新提交会报错，不删除 `Please wait susfs update.`。
+
+保持 `KSU_META=//` 使用新的固定提交；如需回退原来的源码，填 `//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`。源码对应该旧 release 时才会使用其 APK。刷机故障时优先恢复已备份且确认能用的 `boot`，修改构建参数不会自动恢复手机。
+
 ### 自定义版本标识
 
 `KSU_META` 第二段会写进管理器显示的内核版本名，只保留字母、数字和 `._+~-`：
 
 ```
               ReSukiSU                              SukiSU-Ultra
-留空      v4.2.0-rc3-239e1e88@ReSukiSU          v4.2.0-6c284e95@builtin
-填 abc    v4.2.0-rc3-abc@ReSukiSU[239e1e88]     v4.2.0-abc@builtin[6c284e95]
+留空      v4.2.0-rc3-5b76b884@BakaSU          v4.2.0-6c284e95@builtin
+填 abc    v4.2.0-rc3-abc@BakaSU[5b76b884]     v4.2.0-abc@builtin[6c284e95]
 ```
 
 第一段（分支）和第三段（提交哈希）留空时使用上表的固定版本；填写后改用指定的分支/提交，这类未经验证的构建若勾选了 `RELEASE`，会以**预发布**发布。
@@ -96,7 +102,7 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 [Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
 
 - **检查上游更新**：ReSukiSU（BakaSU）发布新版本，或 SukiSU-Ultra `builtin` 分支、SUSFS、AnyKernel3、Baseband-guard、SukiSU_patch 有新提交时，自动开一个 `upstream-update` Issue，列出新提交。不会自动构建，确认后再更新固定版本。
-- **SUSFS 编译限制**：BakaSU 从 2026-10-10（48fa4bb）起在源码里禁止带 SUSFS 编译（`Please wait susfs update.`），要等 SUSFS 跟上新版 KernelSU 后才会解除。维护任务会检查最新 release 是否仍有这个限制（有的话在 Issue 里提示暂勿升级），并在 main 分支解除限制、但还没有新 release 时提醒，同时附上 [#622](https://github.com/Baka-SU/BakaSU/issues/622)（5.10 内核开启隐藏 SELinux 后终端 `exec` 被拒）的状态。该问题已于 2026-10-13 在 BakaSU main 修复（sidtab 重复分配 SID，[#623](https://github.com/Baka-SU/BakaSU/pull/623) 等），但修复不在 v4.2.0-rc3 里，要等下一个 release 且 SUSFS 限制解除后才能升级。
+- **SUSFS 编译限制**：BakaSU 从 2026-10-10（48fa4bb）起在源码里禁止带 SUSFS 编译（`Please wait susfs update.`），要等 SUSFS 跟上新版 KernelSU 后才会解除。维护任务会检查最新 release 是否仍有这个限制（有的话在 Issue 里提示暂勿升级），并在 main 分支解除限制、但还没有新 release 时提醒，同时附上 [#622](https://github.com/Baka-SU/BakaSU/issues/622)（旧内核开启隐藏 SELinux 后终端 `exec` 被拒；上游说明为 5.4/4.19/4.14，不能直接套用到本项目 5.10）的状态。该问题已于 2026-10-13 在 BakaSU main 修复（sidtab 重复分配 SID，[#623](https://github.com/Baka-SU/BakaSU/pull/623) 等），但该修复不在固定的 `5b76b884` 里；是否需要回移要按具体源码判断。主线仍受限时保持固定提交，待 SUSFS 兼容和编译限制解除后再评估升级。
 - **ccache 保活**：每天访问一次编译缓存，避免被 GitHub 删除。
 
 ## 缓存
