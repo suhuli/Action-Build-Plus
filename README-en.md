@@ -17,7 +17,7 @@ GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel
 | Build | Fast build (make + ccache), falls back to the official script |
 | BakaSU (default; RESUKISU input) | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c) (35222 / UAPI 5; v4.2.0-rc3 label; manager from the same commit CI, not the older release APK) |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) branch @ `6c284e95` (pinned, UAPI 2; bundled manager is v4.2.0 with the same UAPI, kernel version code set to the manager's 40900) |
-| SUSFS | v2.3.0 (`gki-android12-5.10` @ `82f08351`) |
+| SUSFS | v2.3.0 (`gki-android12-5.10` @ [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09), pinned) |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) @ `0fc75698` (pinned) |
 | Baseband-guard | `a54e0dc6` (pinned) |
 | KPM tool | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) @ `547ae94b` (pinned, SukiSU-Ultra + KPM only) |
@@ -28,7 +28,7 @@ Derived from [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build), 
 ## Usage
 
 1. Go to **Actions → Build OnePlus Ace Race T Kernel → Run workflow**.
-2. The defaults pin BakaSU `5b76b884` + SUSFS. This new combination still needs device validation; back up `boot` before flashing. A successful build is not proof of runtime stability.
+2. The defaults pin BakaSU `5b76b884` + SUSFS `ca7093a1`. This new combination still needs device validation; back up `boot` before flashing. A successful build is not proof of runtime stability.
 3. After ~15–20 minutes download the flashable zip (with a matching manager APK only when that commit CI artifact is available and versionCode matches) from **Artifacts** at the bottom of the run page (unzip once). Nothing is published by default; tick `RELEASE` before running to publish a [Release](https://github.com/suhuli/Action-Build-Plus/releases) with the zip, manager APK and SHA-256.
 4. Flash the zip with Kernel Flasher / Horizon Kernel Flasher or from recovery.
 
@@ -65,6 +65,19 @@ Both normal and spoofed managers are selected from the same `5b76b884` CI commit
 This is the last mainline commit before the SUSFS build block, not a guarantee of bug-free operation. It lacks the later SELinux-hiding timing side-channel fix. The workflow preserves the upstream block and fails early for blocked custom commits. The new BakaSU + 5.10 + SUSFS combination needs compilation and device testing.
 
 Keep `KSU_META=//` for the new pin. To build the previous source, use `//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`; only that source is eligible for the old release APK. Restore a known-good backed-up `boot` if flashing fails.
+
+## SUSFS pin and rollback
+
+SUSFS comes directly from [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu), branch `gki-android12-5.10`, pinned to [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09). Its version string is still **v2.3.0**; default builds do not track a moving branch HEAD.
+
+Compared with the previous `82f08351` pin, this includes:
+
+- [`6c931c0d`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/6c931c0d922637c27a7f35e3d1cf55fb1c7305c4): fixes the SELinux status leak in `sel_open_handle_status()`.
+- `ca7093a1`: removes unused functions from the KernelSU-specific `10_enable_susfs_for_ksu.patch`. This workflow applies only the matching `50_add_susfs_in_gki-android12-5.10.patch`, not that extra KernelSU patch on top of BakaSU / SukiSU-Ultra.
+
+BakaSU / SukiSU-Ultra pins and the upstream SUSFS build block are unchanged. The updated combination still requires a full kernel build and device validation; back up `boot` before flashing.
+
+To rebuild with the previous SUSFS source, set `SUSFS_META` to `82f08351fadb8b19dd6591bd14634d02ad832145`. Leave it empty for the new pin and keep `SUSFS_DEV` off. This changes future builds only; it does not restore an already-flashed kernel.
 
 ## Maintenance
 

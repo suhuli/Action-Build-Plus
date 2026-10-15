@@ -725,8 +725,8 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支）
-            STABLE_SUSFS_COMMIT="82f08351fadb8b19dd6591bd14634d02ad832145"
+            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复）
+            STABLE_SUSFS_COMMIT="ca7093a1a26f7911987110c34a1352d74cfb1d09"
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_META="$STABLE_SUSFS_COMMIT"
               echo "SUSFS 固定版本: $SUSFS_META"

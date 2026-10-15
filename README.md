@@ -17,7 +17,7 @@
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
 | BakaSU（默认，选项名 RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0，内核版本号设为与管理器相同的 40900） |
-| SUSFS | v2.3.0（`gki-android12-5.10` 分支 `82f08351`） |
+| SUSFS | v2.3.0（`gki-android12-5.10` 分支 [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09)，固定提交） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
 | KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `547ae94b`（固定提交，仅 SukiSU-Ultra + KPM 使用） |
@@ -29,7 +29,7 @@
 ## 使用
 
 1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
-2. 默认参数固定使用 BakaSU `5b76b884` + SUSFS；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
+2. 默认参数固定使用 BakaSU `5b76b884` + SUSFS `ca7093a1`；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
 3. 等待约 15～20 分钟（缓存未命中时更久）。构建成功后在运行页面底部的 **Artifacts** 下载刷机包（匹配的管理器 CI 产物可用时附带 APK；不可用或版本号不匹配时不附带）。默认**不会**发布 Release；需要发布时运行前勾选 `RELEASE`，会发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、管理器 APK 和 SHA-256。
 4. 用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入刷机包，或在 Recovery 中刷入。
 
@@ -96,6 +96,19 @@ SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类
 ## 补丁检查
 
 SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直接失败并打印未打上的部分，不会产出缺功能的内核。本机内核与 SUSFS 补丁的兼容修复在 [`scripts/susfs_fixups.py`](scripts/susfs_fixups.py)。
+
+### SUSFS 固定版本与回退
+
+SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) 的 `gki-android12-5.10` 分支，默认固定到 [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09)，版本号仍为 **v2.3.0**，不是每次构建都跟随分支 HEAD。
+
+相对原固定提交 `82f08351`，本次包含：
+
+- [`6c931c0d`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/6c931c0d922637c27a7f35e3d1cf55fb1c7305c4)：修复 `sel_open_handle_status()` 中的 SELinux 状态泄露问题。
+- `ca7093a1`：清理供 KernelSU 使用的 `10_enable_susfs_for_ksu.patch` 中不再使用的函数。本工作流只应用对应的 `50_add_susfs_in_gki-android12-5.10.patch`，不会把前者额外应用到 BakaSU / SukiSU-Ultra。
+
+本次不改变 BakaSU / SukiSU-Ultra 的固定提交，也不删除上游 SUSFS 编译限制。更新后的组合仍需完整内核编译和实机验证，刷入前备份 `boot`。
+
+如需构建原来的 SUSFS，在 `SUSFS_META` 填 `82f08351fadb8b19dd6591bd14634d02ad832145`；留空使用新的固定提交，`SUSFS_DEV` 保持关闭。该参数只改变后续构建，不会恢复已刷入的内核。
 
 ## 自动维护
 
