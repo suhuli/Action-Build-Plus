@@ -16,11 +16,11 @@
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
 | BakaSU（默认，选项名 RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
-| SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 `6c284e95`（固定提交，UAPI 2；配套管理器为 UAPI 相同的 v4.2.0，内核版本号设为与管理器相同的 40900） |
-| SUSFS | v2.3.0（`gki-android12-5.10` 分支 [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09)，固定提交） |
+| SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 [`7f1c299a`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/7f1c299af463d008e66e714077eb6a8079ff722b)（固定提交，v4.2.1，UAPI 6；v4.2.1 正式版管理器仍是 UAPI 5，因此配套管理器取 UAPI 相同的 main 最新 CI 构建，内核版本号设为该管理器的 versionCode） |
+| SUSFS | v2.3.0（`gki-android12-5.10` 分支 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)，固定提交） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
-| KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `547ae94b`（固定提交，仅 SukiSU-Ultra + KPM 使用） |
+| KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `7c6289c9`（固定提交，仅 SukiSU-Ultra + KPM 使用） |
 | 源码清单 | [`manifests/oneplus_ace_race_t.xml`](manifests/oneplus_ace_race_t.xml)，不依赖外部清单仓库 |
 | 额外配置 | `CONFIG_USER_NS=y`（部分容器、沙盒类应用需要） |
 
@@ -29,7 +29,7 @@
 ## 使用
 
 1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
-2. 默认参数固定使用 BakaSU `5b76b884` + SUSFS `ca7093a1`；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
+2. 默认参数固定使用 BakaSU `5b76b884` + SUSFS `31eb14ad`；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
 3. 等待约 15～20 分钟（缓存未命中时更久）。构建成功后在运行页面底部的 **Artifacts** 下载刷机包（匹配的管理器 CI 产物可用时附带 APK；不可用或版本号不匹配时不附带）。默认**不会**发布 Release；需要发布时运行前勾选 `RELEASE`，会发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、管理器 APK 和 SHA-256。
 4. 用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入刷机包，或在 Recovery 中刷入。
 
@@ -69,7 +69,7 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 | KPM / KPN | 不支持 | 支持 |
 
 > [!IMPORTANT]
-> SukiSU-Ultra 管理器与内核的 UAPI 版本必须**完全相同**，否则管理器会提示"需要更新内核"（或"需要更新管理器"），并禁用超级用户、模块等大部分功能。`builtin` 分支的 UAPI 落后于 main（目前内核为 2，main 的最新管理器已是 5），所以**不要安装 main 分支或官网最新的管理器**，请使用刷机包里附带的版本。上游 `builtin` 的版本号按编译时 main 分支的提交数计算（越晚编译越大），会与较早的正式版管理器不同，管理器首页因此提示"管理器版本与 KernelSU 驱动版本不匹配"；工作流在编译前选好管理器，并把内核版本号改成该管理器 APK 的 versionCode（[`scripts/apk_version_code.py`](scripts/apk_version_code.py) 读取），两者完全一致。
+> SukiSU-Ultra 管理器与内核的 UAPI 版本必须**完全相同**，否则管理器会提示"需要更新内核"（或"需要更新管理器"），并禁用超级用户、模块等大部分功能。`builtin` 分支的 UAPI 与正式版不一定相同（目前 `builtin` 内核为 6，v4.2.1 正式版管理器仍是 5；以后 main 也可能先升到更高版本），所以**不要自行安装正式版、main 分支或官网最新的管理器**，请使用刷机包里附带的版本。上游 `builtin` 的版本号按编译时 main 分支的提交数计算（越晚编译越大），会与较早的正式版管理器不同，管理器首页因此提示"管理器版本与 KernelSU 驱动版本不匹配"；工作流在编译前选好管理器，并把内核版本号改成该管理器 APK 的 versionCode（[`scripts/apk_version_code.py`](scripts/apk_version_code.py) 读取），两者完全一致。
 
 SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类型定义不一致（SUSFS 2026-04 起改为 static key），[`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) 会在打完 SUSFS 补丁后自动转换；遇到无法识别的代码结构会直接让构建失败，不会悄悄跳过。
 
@@ -85,8 +85,8 @@ SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类
 
 ```
               ReSukiSU                              SukiSU-Ultra
-留空      v4.2.0-rc3-5b76b884@BakaSU          v4.2.0-6c284e95@builtin
-填 abc    v4.2.0-rc3-abc@BakaSU[5b76b884]     v4.2.0-abc@builtin[6c284e95]
+留空      v4.2.0-rc3-5b76b884@BakaSU          v4.2.1-7f1c299a@builtin
+填 abc    v4.2.0-rc3-abc@BakaSU[5b76b884]     v4.2.1-abc@builtin[7f1c299a]
 ```
 
 第一段（分支）和第三段（提交哈希）留空时使用上表的固定版本；填写后改用指定的分支/提交，这类未经验证的构建若勾选了 `RELEASE`，会以**预发布**发布。
@@ -99,16 +99,16 @@ SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直�
 
 ### SUSFS 固定版本与回退
 
-SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) 的 `gki-android12-5.10` 分支，默认固定到 [`ca7093a1`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/ca7093a1a26f7911987110c34a1352d74cfb1d09)，版本号仍为 **v2.3.0**，不是每次构建都跟随分支 HEAD。
+SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) 的 `gki-android12-5.10` 分支，默认固定到 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)，版本号仍为 **v2.3.0**，不是每次构建都跟随分支 HEAD。
 
-相对原固定提交 `82f08351`，本次包含：
+相对原固定提交 `ca7093a1`，本次包含：
 
-- [`6c931c0d`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/6c931c0d922637c27a7f35e3d1cf55fb1c7305c4)：修复 `sel_open_handle_status()` 中的 SELinux 状态泄露问题。
-- `ca7093a1`：清理供 KernelSU 使用的 `10_enable_susfs_for_ksu.patch` 中不再使用的函数。本工作流只应用对应的 `50_add_susfs_in_gki-android12-5.10.patch`，不会把前者额外应用到 BakaSU / SukiSU-Ultra。
+- [`c06d5f8e`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/c06d5f8ef2b53d04c5e1c6b86dc3076f1e0e9f33)：补丁上下文 rebase 到 android12-5.10.257，代码不变。
+- [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)：继续修复 selinux_hide——`setprocattr`、`selinuxfs` 的 `context` / `access` 写入改为同时在真实与伪装策略的 sidtab 中注册上下文（对应上游 KernelSU [`a810677b`](https://github.com/tiann/KernelSU/commit/a810677b847ba564c5f9d3fa0fbabe54794b8eef)）。新增的 `my_security_context_to_sid()` 由补丁自身在 `ss/services.c` 中定义；KernelSU 侧仍只需提供 `fake_state` 等原有符号，BakaSU `5b76b884` 与 SukiSU-Ultra `7f1c299a` 都已提供。
 
-本次不改变 BakaSU / SukiSU-Ultra 的固定提交，也不删除上游 SUSFS 编译限制。更新后的组合仍需完整内核编译和实机验证，刷入前备份 `boot`。
+已离线核对：三个提交的补丁都能完整打到本机 5.10.110 源码上（经 `susfs_fixups.py` 处理后无 `.rej`）。仍需完整内核编译和实机验证，刷入前备份 `boot`。
 
-如需构建原来的 SUSFS，在 `SUSFS_META` 填 `82f08351fadb8b19dd6591bd14634d02ad832145`；留空使用新的固定提交，`SUSFS_DEV` 保持关闭。该参数只改变后续构建，不会恢复已刷入的内核。
+如需构建原来的 SUSFS，在 `SUSFS_META` 填 `ca7093a1a26f7911987110c34a1352d74cfb1d09`（更早的 `82f08351fadb8b19dd6591bd14634d02ad832145` 也可用）；留空使用新的固定提交，`SUSFS_DEV` 保持关闭。该参数只改变后续构建，不会恢复已刷入的内核。
 
 ## 自动维护
 

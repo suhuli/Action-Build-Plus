@@ -13,10 +13,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
-PIN = 'ca7093a1a26f7911987110c34a1352d74cfb1d09'
-OLD = '82f08351fadb8b19dd6591bd14634d02ad832145'
+PIN = '31eb14add587b0a089dfe1819f92cc94920e141e'
+OLD = 'ca7093a1a26f7911987110c34a1352d74cfb1d09'
 BAKA = '5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'
-SUKI = '6c284e957feaa9a388a9f1c37dc4ec80d95e434b'
+SUKI = '7f1c299af463d008e66e714077eb6a8079ff722b'
 
 
 class SusfsPinTests(unittest.TestCase):

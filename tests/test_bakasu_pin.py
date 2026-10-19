@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
 PIN = '5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'
 OLD = '239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb'
-SUKI = '6c284e957feaa9a388a9f1c37dc4ec80d95e434b'
+SUKI = '7f1c299af463d008e66e714077eb6a8079ff722b'
 
 
 def step_script(name):

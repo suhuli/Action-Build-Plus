@@ -116,7 +116,7 @@ jobs:
       # 固定版本，maintenance.yml 每天检查上游是否有新提交
       AK3_COMMIT: 0fc7569866bb5d5fe51752cc410dca3e92ab332f  # Numbersf/AnyKernel3
       BBG_COMMIT: a54e0dc6cf0aff4dd87fec49644a02d2eb612905  # vc-teahouse/Baseband-guard
-      SUKISU_PATCH_COMMIT: 547ae94bcaec53d030398f857950c64662043a5d  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
+      SUKISU_PATCH_COMMIT: 7c6289c95bdc786119b03d150236853b7b4872ca  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -452,7 +452,7 @@ jobs:
           RESUKISU_TAG="v4.2.0-rc3"
           RESUKISU_COMMIT="5b76b884c75f729a220bb317aa4a4fc78f0e0e9c"  # BakaSU，35222/UAPI 5；SUSFS 限制之前的最后一个主线提交
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
-          SUKISU_BUILTIN_COMMIT="6c284e957feaa9a388a9f1c37dc4ec80d95e434b"  # SukiSU-Ultra builtin 分支，已核对与固定的 SUSFS 接口一致
+          SUKISU_BUILTIN_COMMIT="7f1c299af463d008e66e714077eb6a8079ff722b"  # SukiSU-Ultra builtin 分支（v4.2.1，UAPI 6），已核对与固定的 SUSFS 接口一致
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -629,7 +629,7 @@ jobs:
 
           pick_manager() {
             # SukiSU-Ultra：管理器必须与内核 UAPI 版本相同，否则提示"需要更新内核"并禁用大部分功能。
-            # builtin 分支的 UAPI 落后于 main（例如内核为 2、main 管理器已是 5），所以不能直接取 main 的最新管理器：
+            # builtin 分支的 UAPI 可能与正式版/main 不同（例如 builtin 为 6 时 v4.2.1 正式版仍是 5），所以不能直接取最新管理器：
             # 先找 UAPI 相同的最新正式版，再看 main 最新 CI；都不匹配时不附带，避免装上不能用的管理器
             if [[ -z "${KSU_UAPI:-}" ]]; then
               echo "::warning title=Manager::未能读取内核 UAPI 版本，本次不附带管理器"
@@ -725,8 +725,8 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复）
-            STABLE_SUSFS_COMMIT="ca7093a1a26f7911987110c34a1352d74cfb1d09"
+            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复和 31eb14ad 的 selinux_hide sidtab 同步修复）
+            STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_META="$STABLE_SUSFS_COMMIT"
               echo "SUSFS 固定版本: $SUSFS_META"
