@@ -452,7 +452,7 @@ jobs:
           RESUKISU_TAG="v4.2.0-rc3"
           RESUKISU_COMMIT="5b76b884c75f729a220bb317aa4a4fc78f0e0e9c"  # BakaSU，35222/UAPI 5；SUSFS 限制之前的最后一个主线提交
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
-          SUKISU_BUILTIN_COMMIT="7f1c299af463d008e66e714077eb6a8079ff722b"  # SukiSU-Ultra builtin 分支（v4.2.1，UAPI 6），已核对与固定的 SUSFS 接口一致
+          SUKISU_BUILTIN_COMMIT="05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5"  # SukiSU-Ultra builtin 分支（2026-10-20，UAPI 6），已核对与保底 SUSFS 31eb14ad 接口一致
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -725,25 +725,63 @@ jobs:
           cd kernel_workspace
           if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            # SUSFS 固定版本 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复和 31eb14ad 的 selinux_hide sidtab 同步修复）
+            # 留空（且未开 SUSFS_DEV）= 自动跟随 SUSFS 分支最新提交：从分支 HEAD 往回逐个检查，
+            # 选第一个与当前 KernelSU 源码接口兼容的提交（scripts/susfs_ksu_check.py），最多回退到下面的保底提交。
+            # 保底提交 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复和 31eb14ad 的 selinux_hide sidtab 同步修复），
+            # 是已验证可与 BakaSU 5b76b884 / SukiSU-Ultra builtin 一起编译的最新提交。
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
+            SUSFS_AUTO=false
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
-              SUSFS_META="$STABLE_SUSFS_COMMIT"
-              echo "SUSFS 固定版本: $SUSFS_META"
+              SUSFS_AUTO=true
+              echo "SUSFS: 自动使用最新兼容提交（保底 ${STABLE_SUSFS_COMMIT::8}）"
             fi
             git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.event.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
             cd susfs4ksu
-            if [[ -z "$SUSFS_META" ]]; then
+            KSU_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel"
+            COMMON_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
+            susfs_ok() { python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"; }
+            SUSFS_NOTE=""
+            # --- 选择 SUSFS 提交 ---
+            if [[ "$SUSFS_AUTO" == true ]]; then
+              SUSFS_HEAD=$(git rev-parse HEAD)
+              if git cat-file -e "${STABLE_SUSFS_COMMIT}^{commit}" 2>/dev/null; then
+                CANDIDATES="$(git rev-list --first-parent --max-count=50 "${STABLE_SUSFS_COMMIT}..HEAD") $STABLE_SUSFS_COMMIT"
+              else
+                echo "::warning title=SUSFS::保底提交 ${STABLE_SUSFS_COMMIT::8} 已不在分支历史中（上游可能强推），只检查分支最新提交"
+                CANDIDATES="$SUSFS_HEAD"
+              fi
+              SUSFS_PICK=""
+              for c in $CANDIDATES; do
+                git -c advice.detachedHead=false checkout -q "$c"
+                echo "检查 SUSFS ${c::8} $(git log -1 --format=%s)"
+                if susfs_ok; then SUSFS_PICK="$c"; break; fi
+              done
+              if [[ -z "$SUSFS_PICK" ]]; then
+                echo "::error title=SUSFS::没有找到与当前 KernelSU 接口兼容的 SUSFS 提交（连保底提交也不兼容），请检查 KernelSU 固定版本"
+                exit 1
+              fi
+              if [[ "$SUSFS_PICK" != "$SUSFS_HEAD" ]]; then
+                SUSFS_NOTE="最新 ${SUSFS_HEAD::8} 与当前 KernelSU 接口不兼容，已自动使用 ${SUSFS_PICK::8}"
+                echo "::warning title=SUSFS::${SUSFS_NOTE}（见上方缺失符号；等 KernelSU 跟进 SUSFS 后会自动用上最新版）"
+              else
+                echo "SUSFS 使用分支最新提交 ${SUSFS_PICK::8}"
+              fi
+            elif [[ -z "$SUSFS_META" ]]; then
               echo "SUSFS 使用开发分支最新提交"
             elif [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
               git checkout HEAD~$SUSFS_META
             else
               git -c advice.detachedHead=false checkout "$SUSFS_META"
             fi
+            # --- 选择结束 ---
+            if [[ "$SUSFS_AUTO" != true ]] && ! susfs_ok; then
+              echo "::warning title=SUSFS::手动指定的 SUSFS $(git rev-parse --short=8 HEAD) 可能与当前 KernelSU 接口不兼容（见上方缺失符号），继续编译，链接阶段可能失败"
+            fi
             SUSFS_VER=$(grep -o 'SUSFS_VERSION "[^"]*"' kernel_patches/include/linux/susfs.h | cut -d'"' -f2)
             echo "SUSFS: $(git log -1 --format='%h %s') ($SUSFS_VER)"
             echo "SUSFS_VER=$SUSFS_VER" >> "$GITHUB_ENV"
             echo "SUSFS_SHA=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
+            echo "SUSFS_NOTE=$SUSFS_NOTE" >> "$GITHUB_ENV"
             cd ..
           fi
           if [ "${{ github.event.inputs.RE_KERNEL }}" = "true" ]; then
@@ -1333,7 +1371,7 @@ jobs:
             echo "| 组件 | 版本 |"
             echo "|---|---|"
             echo "| ${KSU_LABEL} | ${KSU_NAME:-?}（版本号 ${KSUVER}，提交 ${KSU_SHA::8}） |"
-            [[ -n "${SUSFS_VER:-}" ]] && echo "| SUSFS | ${SUSFS_VER}（${SUSFS_SHA}） |"
+            [[ -n "${SUSFS_VER:-}" ]] && echo "| SUSFS | ${SUSFS_VER}（${SUSFS_SHA}）${SUSFS_NOTE:+<br>${SUSFS_NOTE}} |"
             [[ "${{ github.event.inputs.LSM_BBG }}" == "true" ]] && echo "| Baseband-guard | ${BBG_COMMIT::8} |"
             echo "| AnyKernel3 | ${AK3_COMMIT::8} |"
             echo "| 工作流 | [${GITHUB_SHA::7}](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) · [运行记录](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"

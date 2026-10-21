@@ -84,7 +84,7 @@ jobs:
             BODY+="当前固定 \`${CUR_RESUKISU::8}\`；最新主线 \`${MAIN_SHA::8}\` 仍有 SUSFS 编译限制，保持固定提交，不自动升级。"$'\n\n'
           fi
 
-          # SUSFS：分支最新提交
+          # SUSFS：分支最新提交（与保底提交不同时提醒，并检查与固定 KernelSU 的接口兼容性）
           API="https://gitlab.com/api/v4/projects/${SUSFS_PROJECT}/repository"
           HEAD=$(curl -fsSL "${API}/branches/${SUSFS_BRANCH}" | jq -r '.commit.id')
           if [[ "$HEAD" != "$CUR_SUSFS" ]]; then
@@ -92,8 +92,26 @@ jobs:
               | grep -oP 'SUSFS_VERSION "\K[^"]+' || echo "?")
             COMMITS=$(curl -fsSL "${API}/compare?from=${CUR_SUSFS}&to=${HEAD}" \
               | jq -r '.commits | reverse | .[:20][] | "- `\(.short_id)` \(.title)"')
+            # 构建默认自动使用与固定 KernelSU 接口兼容的最新 SUSFS 提交；这里报告最新提交的兼容情况
+            git clone -q --depth=1 -b "$SUSFS_BRANCH" https://gitlab.com/simonpunk/susfs4ksu.git "$RUNNER_TEMP/susfs"
+            ksu_compat() {  # 名称 仓库 提交
+              local d="$RUNNER_TEMP/ksu-${3::8}" missing
+              mkdir -p "$d"
+              if ! curl -fsSL "https://codeload.github.com/$2/tar.gz/$3" \
+                   | tar -xz -C "$d" --strip-components=1 --wildcards '*/kernel/*'; then
+                echo "- $1 \`${3::8}\`：⚠️ 下载源码失败，未检查"; return 0
+              fi
+              if python3 scripts/susfs_ksu_check.py "$RUNNER_TEMP/susfs/kernel_patches" "$d/kernel" > "$d.log"; then
+                echo "- $1 \`${3::8}\`：✅ 兼容，构建会自动使用最新 SUSFS"
+              else
+                missing=$(grep -oP '✗ \K[^:]+' "$d.log" | sed 's/.*/`&`/' | paste -sd' ' || true)
+                echo "- $1 \`${3::8}\`：❌ 不兼容，构建会自动回退到较早的兼容提交（缺少 ${missing:-?}）"
+              fi
+            }
             BODY+="### SUSFS ${VER}（${SUSFS_BRANCH}）"$'\n'
-            BODY+="当前固定 \`${CUR_SUSFS::8}\` → 最新 [\`${HEAD::8}\`](https://gitlab.com/simonpunk/susfs4ksu/-/commits/${SUSFS_BRANCH})"$'\n\n'
+            BODY+="保底提交 \`${CUR_SUSFS::8}\` → 最新 [\`${HEAD::8}\`](https://gitlab.com/simonpunk/susfs4ksu/-/commits/${SUSFS_BRANCH})。构建默认自动使用与固定 KernelSU 接口兼容的最新提交，最新提交的检查结果："$'\n\n'
+            BODY+="$(ksu_compat BakaSU "$RESUKISU_REPO" "$CUR_RESUKISU")"$'\n'
+            BODY+="$(ksu_compat "SukiSU-Ultra builtin" SukiSU-Ultra/SukiSU-Ultra "$CUR_SUKISU")"$'\n\n'
             BODY+="${COMMITS}"$'\n\n'
           fi
 
@@ -121,7 +139,7 @@ jobs:
             exit 0
           fi
 
-          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_COMMIT\`（只有切回 release 源码才同步 \`RESUKISU_TAG\` / \`RESUKISU_RELEASE_COMMIT\`） / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\` / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_COMMIT\`（只有切回 release 源码才同步 \`RESUKISU_TAG\` / \`RESUKISU_RELEASE_COMMIT\`） / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\`（SUSFS 保底提交；构建默认已自动跟随最新兼容提交） / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
           echo "$BODY"
           if [[ -z "$ISSUE" ]]; then
             gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true
