@@ -16,7 +16,7 @@ jobs:
     name: 检查上游更新
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Compare with pinned versions
         env:
@@ -157,7 +157,7 @@ jobs:
       # path 必须与编译工作流中的 CCACHE_DIR 完全一致，否则匹配不到
       - name: Touch latest ccache
         id: restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: /home/runner/.ccache_oneplus_ace_race_t
           key: ccache-keepalive-never-matches

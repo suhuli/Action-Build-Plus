@@ -119,7 +119,7 @@ jobs:
       SUKISU_PATCH_COMMIT: 7c6289c95bdc786119b03d150236853b7b4872ca  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Maximize Build Space
         if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
@@ -133,7 +133,7 @@ jobs:
       # 扩容后工作目录被新卷覆盖，重新检出仓库（补丁和脚本都在仓库里）
       - name: Checkout After Resize
         if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Extract Manifest Info
         id: extract_info
@@ -262,7 +262,7 @@ jobs:
       # 缓存写入后不能覆盖，所以每次以运行 ID 结尾保存新缓存，恢复时取同前缀中最新的一份
       - name: Restore Ccache
         if: ${{ github.event.inputs.BUILD_NOCCACHE == 'false' }}
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-alpha-16.2-${{ github.run_id }}
@@ -1125,7 +1125,7 @@ jobs:
 
       - name: Save Ccache
         if: ${{ success() && github.event.inputs.BUILD_NOCCACHE == 'false' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-alpha-16.2-${{ github.run_id }}
