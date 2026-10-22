@@ -10,7 +10,7 @@
 
 ## 最新组合测试（本分支默认）
 
-- **内核端**：[`suhuli/BakaSU@c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc)，基于最新官方 main，而不是旧 `sync-susfs` 分支。
+- **内核端**：[`suhuli/BakaSU@f7d829cb`](https://github.com/suhuli/BakaSU/commit/f7d829cb62e8555037bf5fada52ce273b92c1ac4)，基于最新官方 main，而不是旧 `sync-susfs` 分支。
 - **SUSFS**：直接使用 `gki-android12-5.10` 最新 HEAD（本次适配为 `f43926dc` / v2.3.0）；新模式接口不匹配时立即失败，**不自动降级**。
 - **启动链**：保留 BakaSU 现有 init.rc / ksud，显式 `KSU_NO_PREINIT`；**未实现、未启用新的 KernelSU preinit runner**，没有添加空接口。
 - **管理器**：取未改动的官方源码基线 `dac2d186` 的官方签名 CI APK；内核版本号绑定为 **35236 / UAPI 5**，修补后的真实提交仍显示在内核名称里。工作流检查 manager/userspace/UAPI 未发生分叉，拒绝随意混用管理器。
@@ -38,7 +38,7 @@ gh workflow run 'Build Kernel OnePlus.yml' --repo suhuli/Action-Build-Plus \
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
 | BakaSU 旧版回退（RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
-| BakaSU 修复版（默认 BAKASU） | [`c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc)（最新上游 main + 5.10 适配；官方管理器基线 `dac2d186`，35236 / UAPI 5） |
+| BakaSU 修复版（默认 BAKASU） | [`f7d829cb`](https://github.com/suhuli/BakaSU/commit/f7d829cb62e8555037bf5fada52ce273b92c1ac4)（最新上游 main + 5.10 适配；官方管理器基线 `dac2d186`，35236 / UAPI 5） |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 [`05f5cdf0`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5)（固定提交，2026-10-20，UAPI 6；v4.2.1 正式版管理器仍是 UAPI 5，因此配套管理器取 UAPI 相同的 main 最新 CI 构建，内核版本号设为该管理器的 versionCode） |
 | SUSFS | v2.3.0（`gki-android12-5.10` 分支；BAKASU 默认严格跟随最新 HEAD；旧模式**自动跟随最新兼容提交**，保底 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |

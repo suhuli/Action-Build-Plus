@@ -6,7 +6,7 @@
 
 GitHub Actions workflow that builds a **ReSukiSU / SukiSU-Ultra + SUSFS** kernel for the **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`) and packages it as a flashable AnyKernel3 zip.
 
-> **Experimental branch `test/bakasu-latest-susfs`; both default main branches are unchanged.** The new default `BAKASU` uses [suhuli/BakaSU `c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc), based on the latest upstream main `dac2d186`. `RESUKISU` remains the legacy rollback mode.
+> **Experimental branch `test/bakasu-latest-susfs`; both default main branches are unchanged.** The new default `BAKASU` uses [suhuli/BakaSU `f7d829cb`](https://github.com/suhuli/BakaSU/commit/f7d829cb62e8555037bf5fada52ce273b92c1ac4), based on the latest upstream main `dac2d186`. `RESUKISU` remains the legacy rollback mode.
 
 ## Latest BakaSU + latest SUSFS test
 
@@ -34,7 +34,7 @@ Details: [adaptation notes](docs/bakasu-latest-susfs.md). The legacy RESUKISU se
 | Source | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | Build | Fast build (make + ccache), falls back to the official script |
 | Legacy BakaSU (RESUKISU rollback input) | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c) (35222 / UAPI 5; v4.2.0-rc3 label; manager from the same commit CI, not the older release APK) |
-| Patched BakaSU (default BAKASU) | [`c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc), latest upstream main + 5.10 compatibility; official manager base `dac2d186`, 35236 / UAPI 5 |
+| Patched BakaSU (default BAKASU) | [`f7d829cb`](https://github.com/suhuli/BakaSU/commit/f7d829cb62e8555037bf5fada52ce273b92c1ac4), latest upstream main + 5.10 compatibility; official manager base `dac2d186`, 35236 / UAPI 5 |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) branch @ [`05f5cdf0`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5) (pinned, 2026-10-20, UAPI 6; the v4.2.1 release manager is still UAPI 5, so the bundled manager is the latest main CI build with the same UAPI, and the kernel version code is set to its versionCode) |
 | SUSFS | v2.3.0 (`gki-android12-5.10`, BAKASU: strict latest HEAD; legacy modes: **latest compatible commit**, fallback [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)) |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) @ `0fc75698` (pinned) |

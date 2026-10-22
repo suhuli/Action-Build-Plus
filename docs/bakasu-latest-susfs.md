@@ -68,6 +68,10 @@ gh workflow run 'Build Kernel OnePlus.yml' --repo suhuli/Action-Build-Plus \
 
 不会默认发布 Release；即使手动勾选 RELEASE，实验配置也始终标记预发布。ZIP 内新增 `build-info.json`，记录实际修补 SHA、管理器源码基线、SUSFS 完整 SHA、初始化模式及 Image/APK 校验和；仅写白名单字段，不序列化环境变量或凭据。
 
+## 构建环境修正
+
+第一次完整工作流运行在 Ubuntu 26.04，旧 APT 缓存 action 没有实际安装依赖，导致 ccache 初始化退出（未进入内核编译）。本测试分支已改为固定 Ubuntu 22.04，以匹配旧 OnePlus/Android 构建工具链；使用显式 apt 安装并验证必需工具，ccache 缺失直接报错。原项目 main 未改动。Fork 同时固定 clang-format 19.1.7，修正两处继承的上游空白格式问题，不改用户态或 UAPI。
+
 ## 已做的本地检查与尚待验证
 
 - 新旧模式回归、严格选源、条件引用、头文件契约、安装幂等、管理器基线拒绝分叉、APK 版本检查、构建版本不匹配失败、来源记录不泄露凭据；

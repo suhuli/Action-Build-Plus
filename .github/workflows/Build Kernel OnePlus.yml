@@ -104,7 +104,8 @@ permissions:
 jobs:
   build:
     name: ${{ startsWith(github.event.inputs.MANAGER_SOURCE, 'SUKISU') && (github.event.inputs.KPM == 'KPM' && '[SukiSU][KPM] ' || github.event.inputs.KPM == 'KPN' && '[SukiSU][KPN] ' || '[SukiSU] ') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '[BBG] ' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && '[DS] ' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '[REKER] ' || '' }}OnePlus Ace Race T ${{ github.event.inputs.SUFFIX }}
-    runs-on: ubuntu-latest
+    # Pin the legacy vendor build environment; ubuntu-latest already moved to 26.04.
+    runs-on: ubuntu-22.04
     # 历次成功构建 10～25 分钟；卡住时 90 分钟后自动终止，而不是占满默认的 6 小时
     timeout-minutes: 90
     env:
@@ -255,11 +256,22 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Install Dependencies + APTC
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with: 
-          packages: python3 git curl ccache libelf-dev build-essential flex bison libssl-dev libncurses-dev liblz4-tool zlib1g-dev libxml2-utils rsync unzip gawk dos2unix kmod libdw-dev elfutils
-          execute_install_scripts: true
+      - name: Install Build Dependencies
+        run: |
+          # APT caching is optional; installing the actual compiler prerequisites is not.
+          # The previous cache-apt action silently skipped installs on ubuntu-26.04.
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3 git curl ccache build-essential bc flex bison libelf-dev libssl-dev \
+            libncurses-dev libncurses5 libtinfo5 lz4 zstd xz-utils zlib1g-dev libxml2-utils rsync unzip zip \
+            gawk dos2unix kmod libdw-dev elfutils
+          for tool in ccache make gcc bc flex bison python3 git curl rsync unzip zip; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error title=Build dependencies::Required tool $tool is still missing after apt install"
+              exit 1
+            fi
+          done
+          ccache --version
 
       # 缓存写入后不能覆盖，所以每次以运行 ID 结尾保存新缓存，恢复时取同前缀中最新的一份
       - name: Restore Ccache
@@ -275,6 +287,10 @@ jobs:
         if: ${{ github.event.inputs.BUILD_NOCCACHE == 'false' }}
         run: |
           INIT_FLAG="${{ env.CCACHE_DIR }}/.ccache_initialized"
+          if ! command -v ccache >/dev/null 2>&1; then
+            echo "::error title=ccache::Required ccache executable is missing; dependency installation must succeed"
+            exit 1
+          fi
           if command -v ccache >/dev/null 2>&1; then
             if [ ! -f "$INIT_FLAG" ]; then
               echo "初始化 ccache (${{ env.CCACHE_DIR }})..."
@@ -285,8 +301,6 @@ jobs:
             else
               echo "✅ ccache 已初始化，跳过"
             fi
-          else
-            echo "❌ 未安装 ccache，跳过"
           fi
           ccache -s
 
