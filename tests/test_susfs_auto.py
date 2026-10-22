@@ -98,6 +98,31 @@ class InterfaceCheckTests(unittest.TestCase):
         r = run_check(kp, self.root / 'ksu', self.root / 'common')
         self.assertEqual(r.returncode, 0, r.stdout)
 
+    def test_multiline_prototype_is_not_a_function_definition(self):
+        kp = make_susfs(self.root / 's', 'extern int missing_handler(int value);')
+        write(self.root / 'ksu/a.c', '''
+            int missing_handler(int value,
+                                int other);
+        ''')
+        r = run_check(kp, self.root / 'ksu')
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn('missing_handler', r.stdout)
+
+    def test_conditional_signature_with_shared_body_is_a_definition(self):
+        kp = make_susfs(self.root / 's', 'extern bool helper(struct inode *inode);', susfs_c='''
+            #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+            bool helper(struct mnt_idmap *idmap, struct inode *inode)
+            #else
+            bool helper(struct inode *inode)
+            #endif
+            {
+                return true;
+            }
+        ''')
+        write(self.root / 'ksu/a.c', '')
+        r = run_check(kp, self.root / 'ksu')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_bad_arguments(self):
         self.assertEqual(run_check(self.root / 'nope', self.root / 'nope').returncode, 2)
 

@@ -1,0 +1,23 @@
+name: Check BakaSU SUSFS integration
+on:
+  push:
+    branches: [test/bakasu-latest-susfs]
+  pull_request:
+    paths:
+      - scripts/**
+      - tests/**
+      - manifests/bakasu-susfs.commit
+      - .github/workflows/Build Kernel OnePlus.yml
+      - .github/workflows/compat-tests.yml
+permissions:
+  contents: read
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Run source selection, bridge, interface and manager regression tests
+        run: python3 -m unittest discover -s tests -v

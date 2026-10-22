@@ -141,7 +141,7 @@ class BakaSUPinTests(unittest.TestCase):
             self.assertIn('KSU_NAME=v4.2.0-rc3-5b76b884@BakaSU', dest.read_text())
 
     def test_manager_ci_requires_exact_head_sha(self):
-        self.assertIn('.head_sha == \\"$KSU_SHA\\"', step_script('Download Manager APK'))
+        self.assertIn('.head_sha == \\"$MANAGER_SHA\\"', step_script('Download Manager APK'))
 
 
 if __name__ == '__main__':

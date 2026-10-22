@@ -1,12 +1,34 @@
 **简体中文** | [English](README-en.md)
 
-[![Build](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=test%2Fbakasu-latest-susfs&label=Experimental&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml)
 
 # Action-Build-Plus
 
 用 GitHub Actions 为 **一加 Ace 竞速版**（`oneplus_ace_race_t`）编译带 **ReSukiSU / SukiSU-Ultra + SUSFS** 的内核，产物为可直接刷入的 AnyKernel3 刷机包。
 
-> ReSukiSU 已于 2026-10-05 更名为 **BakaSU**（仓库 [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)）。默认源码现固定到改名后的 `5b76b884`（35222 / UAPI 5），管理器取同一提交的 CI 构建，刷机包使用 BakaSU 名称。为兼容已有构建参数，选项名仍沿用 `RESUKISU` / `RESUKISU_SPOOF`。
+> **当前为 `test/bakasu-latest-susfs` 实验分支，两个仓库的默认 main 均保持原样。** 默认选项 `BAKASU` 使用自己的 [BakaSU 修复分支](https://github.com/suhuli/BakaSU/tree/susfs-android12-5.10)，基于最新上游 main `dac2d186`；旧选项 `RESUKISU` / `RESUKISU_SPOOF` 保留为回退模式。
+
+## 最新组合测试（本分支默认）
+
+- **内核端**：[`suhuli/BakaSU@c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc)，基于最新官方 main，而不是旧 `sync-susfs` 分支。
+- **SUSFS**：直接使用 `gki-android12-5.10` 最新 HEAD（本次适配为 `f43926dc` / v2.3.0）；新模式接口不匹配时立即失败，**不自动降级**。
+- **启动链**：保留 BakaSU 现有 init.rc / ksud，显式 `KSU_NO_PREINIT`；**未实现、未启用新的 KernelSU preinit runner**，没有添加空接口。
+- **管理器**：取未改动的官方源码基线 `dac2d186` 的官方签名 CI APK；内核版本号绑定为 **35236 / UAPI 5**，修补后的真实提交仍显示在内核名称里。工作流检查 manager/userspace/UAPI 未发生分叉，拒绝随意混用管理器。
+- **回退**：选择 `RESUKISU` 可保留原来的 `5b76b884` + 最新兼容 SUSFS 逻辑；也可直接在原 main 上构建。
+
+参数：`MANAGER_SOURCE=BAKASU`、`KSU_META=//`、`SUSFS_META` 留空、`SUSFS_DEV=false`、`RELEASE=false`。
+
+默认 main 不包含新选项，所以 GitHub 网页的 Run workflow 表单可能仍显示旧选项。测试请明确指定分支与参数（或查看本次已触发的测试运行）：
+
+```sh
+gh workflow run 'Build Kernel OnePlus.yml' --repo suhuli/Action-Build-Plus \
+  --ref test/bakasu-latest-susfs -f MANAGER_SOURCE=BAKASU \
+  -f KSU_META=// -f SUSFS_META= -f SUSFS_DEV=false -f RELEASE=false
+```
+
+本地已完成真实 5.10.110 源码补丁应用、完整 BakaSU 驱动和 SELinux 对象编译、全部 23 个 SUSFS 修改 C 文件编译及关键对象部分链接（LLVM 19，非 LTO/CFI 配置）。**这些不等于完整生产工具链 Image 构建或实机验证。** 设计、来源、后续升级及验证边界见 [适配说明](docs/bakasu-latest-susfs.md)。
+
+以下表格同时列出保留的旧模式，`RESUKISU` 的固定提交不是新默认 `BAKASU` 的源码。
 
 | 项目 | 值 |
 |---|---|
@@ -15,9 +37,10 @@
 | 内核 | 5.10.110（GKI，android12-5.10） |
 | 源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895) `oneplus/mt6895_t_13.0.0_ace_racing` |
 | 编译方式 | 极速构建（make + ccache），失败时回退官方脚本 |
-| BakaSU（默认，选项名 RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
+| BakaSU 旧版回退（RESUKISU） | [`5b76b884`](https://github.com/Baka-SU/BakaSU/commit/5b76b884c75f729a220bb317aa4a4fc78f0e0e9c)（35222 / UAPI 5，版本标签 v4.2.0-rc3；管理器取同一提交的 CI，不使用旧 release APK） |
+| BakaSU 修复版（默认 BAKASU） | [`c398251f`](https://github.com/suhuli/BakaSU/commit/c398251f0e505576a3eb8887561ade6cf73e05cc)（最新上游 main + 5.10 适配；官方管理器基线 `dac2d186`，35236 / UAPI 5） |
 | SukiSU-Ultra | [`builtin`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/tree/builtin) 分支 [`05f5cdf0`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5)（固定提交，2026-10-20，UAPI 6；v4.2.1 正式版管理器仍是 UAPI 5，因此配套管理器取 UAPI 相同的 main 最新 CI 构建，内核版本号设为该管理器的 versionCode） |
-| SUSFS | v2.3.0（`gki-android12-5.10` 分支，**自动跟随最新兼容提交**，保底 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)） |
+| SUSFS | v2.3.0（`gki-android12-5.10` 分支；BAKASU 默认严格跟随最新 HEAD；旧模式**自动跟随最新兼容提交**，保底 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)） |
 | AnyKernel3 | [Numbersf/AnyKernel3](https://github.com/Numbersf/AnyKernel3) `0fc75698`（固定提交） |
 | Baseband-guard | `a54e0dc6`（固定提交） |
 | KPM 工具 | [SukiSU-Ultra/SukiSU_patch](https://github.com/SukiSU-Ultra/SukiSU_patch) `7c6289c9`（固定提交，仅 SukiSU-Ultra + KPM 使用） |
@@ -29,7 +52,7 @@
 ## 使用
 
 1. 打开 **Actions → Build OnePlus Ace Race T Kernel → Run workflow**。
-2. 默认参数使用 BakaSU `5b76b884` + SUSFS 最新兼容提交（目前为 `31eb14ad`，见下文）；直接点 **Run workflow** 即可。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
+2. 本测试分支默认使用修复后的最新 BakaSU + 最新 SUSFS，参数见上文。选择 `RESUKISU` 时才使用 `5b76b884` + 最新兼容 SUSFS（目前为 `31eb14ad`）。此新组合仍需在本机验证，刷入前备份 `boot`，不要将构建通过当作运行稳定的保证。
 3. 等待约 15～20 分钟（缓存未命中时更久）。构建成功后在运行页面底部的 **Artifacts** 下载刷机包（匹配的管理器 CI 产物可用时附带 APK；不可用或版本号不匹配时不附带）。默认**不会**发布 Release；需要发布时运行前勾选 `RELEASE`，会发布到 [Releases](https://github.com/suhuli/Action-Build-Plus/releases)，附带刷机包、管理器 APK 和 SHA-256。
 4. 用 Kernel Flasher / Horizon Kernel Flasher 等工具刷入刷机包，或在 Recovery 中刷入。
 
@@ -42,9 +65,9 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU：`RESUKISU` 为 ReSukiSU，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
+| 管理器调用方向 `MANAGER_SOURCE` | `BAKASU` | 内核里集成哪一个 KernelSU：`BAKASU` 为最新版修复分支，`RESUKISU` 为旧版回退，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
 | 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，ReSukiSU 下会自动跳过 |
-| SUSFS 版本 `SUSFS_META` | 空 | 留空自动使用 SUSFS 分支上与当前 KernelSU 接口兼容的最新提交（保底 `31eb14ad`，与新 BakaSU 的组合仍待实机验证）；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
+| SUSFS 版本 `SUSFS_META` | 空 | BAKASU 下留空严格使用最新 HEAD、接口不兼容就失败；RESUKISU / SUKISU 下留空自动使用最新兼容提交（保底 `31eb14ad`）；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（BAKASU 测试模式与 SukiSU-Ultra 不能关闭，见下文） |
 | 构建时间 `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | 写入 `uname -v` 的时间（自动加上 `#1 SMP PREEMPT`）。默认与原厂内核一致；`F` 为实际编译时间，也可填任意时间字符串 |
 | 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
 | 内核后缀 `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | `uname -r` 中 `5.10.110-android12-` 之后的部分。默认与原厂内核一致；清空则使用随机字符串 |
@@ -59,7 +82,9 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 
 原项目中对本机型无效的选项（ZRAM、NETFILTER、风驰调度、动态清单、SUSFS 模块打包等）已移除。ReSukiSU / SukiSU-Ultra 管理器都自带 SUSFS 设置，不需要另装 SUSFS 模块。
 
-### ReSukiSU 与 SukiSU-Ultra
+### 保留的旧版 ReSukiSU 回退模式与 SukiSU-Ultra
+
+下表仅描述 `RESUKISU` / `SUKISU`，不是新默认修复版 `BAKASU`。
 
 | | ReSukiSU | SukiSU-Ultra |
 |---|---|---|
@@ -73,11 +98,13 @@ Artifacts 里的刷机包外面多套了一层 zip，需要先解压一次。
 
 SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类型定义不一致（SUSFS 2026-04 起改为 static key），[`scripts/ksu_susfs_compat.py`](scripts/ksu_susfs_compat.py) 会在打完 SUSFS 补丁后自动转换；遇到无法识别的代码结构会直接让构建失败，不会悄悄跳过。
 
-### 固定提交的限制与回退
+### 旧版 RESUKISU 固定提交的限制与回退
+
+新默认 BAKASU 使用修复后的独立分支和明确的集成检查，不通过删除旧版错误提示来伪装兼容。以下说明保留的 RESUKISU 回退模式。
 
 `5b76b884` 是上游加入 SUSFS 编译限制前的最后一个主线提交，不等于已确认无缺陷。它不包含后续 SELinux 隐藏时间侧信道修复，且本项目的新 BakaSU + 5.10 + SUSFS 组合仍需构建及实机验证。工作流保留上游限制，遇到受限的新提交会报错，不删除 `Please wait susfs update.`。
 
-保持 `KSU_META=//` 使用新的固定提交；如需回退原来的源码，填 `//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`。源码对应该旧 release 时才会使用其 APK。刷机故障时优先恢复已备份且确认能用的 `boot`，修改构建参数不会自动恢复手机。
+在 `MANAGER_SOURCE=RESUKISU` 下保持 `KSU_META=//` 使用该旧版固定提交；如需回退原来的源码，填 `//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`。源码对应该旧 release 时才会使用其 APK。刷机故障时优先恢复已备份且确认能用的 `boot`，修改构建参数不会自动恢复手机。
 
 ### 自定义版本标识
 
@@ -97,16 +124,16 @@ SukiSU-Ultra `builtin` 分支和 SUSFS v2.3.0 对 `ksu_su_compat_enabled` 的类
 
 SUSFS、Unicode 修复、BBRv3 补丁只要有一处没打上，构建就会直接失败并打印未打上的部分，不会产出缺功能的内核。本机内核与 SUSFS 补丁的兼容修复在 [`scripts/susfs_fixups.py`](scripts/susfs_fixups.py)。
 
-### SUSFS 自动跟随最新版与回退
+### 旧模式：SUSFS 自动跟随最新兼容提交与回退
 
-SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) 的 `gki-android12-5.10` 分支。`SUSFS_META` 留空时，**每次构建都会自动使用分支上最新的、与当前 KernelSU 源码接口兼容的提交**：
+SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) 的 `gki-android12-5.10` 分支。在 `RESUKISU` / `SUKISU` 旧模式下，`SUSFS_META` 留空时，**每次构建都会自动使用分支上最新的、与当前 KernelSU 源码接口兼容的提交**。新 BAKASU 模式严格检查最新 HEAD，不走下面的自动回退：
 
 1. 从分支 HEAD 开始往回逐个检查，最多回退到保底提交 [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)（v2.3.0）；
 2. 检查由 [`scripts/susfs_ksu_check.py`](scripts/susfs_ksu_check.py) 完成：收集 SUSFS 内核补丁里所有 `extern` 声明的符号，确认 KernelSU 源码中都有**非 static** 的定义（或由内核自身提供）。不满足的提交即使能打上补丁，也会在最后链接时报 `undefined reference`；
 3. 选中的不是 HEAD 时，构建日志会给出警告并列出缺少的符号，Release 说明的 SUSFS 一栏也会注明“已自动使用 xxx”；
 4. 等 BakaSU / SukiSU-Ultra 跟进新版 SUSFS 并更新固定提交后，下一次构建会自动用上最新 SUSFS，不需要再改 `STABLE_SUSFS_COMMIT`。
 
-> **目前状态（2026-10-21）**：SUSFS 在 2026-10-19 的 `5a3af83e` / `e24d1726` / `f43926dc` 同步了官方 KernelSU 主线，内核补丁开始要求 KernelSU 提供 `ksu_setup_preinit_file`、`ksu_preinit_handle_post_execveat`、`my_setprocattr`、`my_write_context`、`my_write_access`。BakaSU（包括最新主线，它为此加了 `Please wait susfs update.`）和 SukiSU-Ultra `builtin` 最新提交都还没有提供（或只有 static 定义），所以目前自动选择的结果仍是 `31eb14ad`。
+> **目前状态（2026-10-21）**：SUSFS 在 2026-10-19 的 `5a3af83e` / `e24d1726` / `f43926dc` 同步了官方 KernelSU 主线，内核补丁开始要求 KernelSU 提供 `ksu_setup_preinit_file`、`ksu_preinit_handle_post_execveat`、`my_setprocattr`、`my_write_context`、`my_write_access`。原版 BakaSU（包括最新主线，它为此加了 `Please wait susfs update.`）和 SukiSU-Ultra `builtin` 最新提交都还没有提供（或只有 static 定义），所以旧模式自动选择的结果仍是 `31eb14ad`。本分支 BAKASU 是明确关闭新 preinit、修复 SELinux 接口的独立兼容方案，不代表原版主线已支持。
 
 这只是接口层面的检查，不能代替完整编译和实机验证；新 SUSFS 被自动选中后，刷入前请备份 `boot`。
 
@@ -120,6 +147,8 @@ SUSFS 直接来自 [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
 如需构建原来的 SUSFS，在 `SUSFS_META` 填 `ca7093a1a26f7911987110c34a1352d74cfb1d09`（更早的 `82f08351fadb8b19dd6591bd14634d02ad832145` 也可用）；填 `31eb14add587b0a089dfe1819f92cc94920e141e` 可固定使用保底提交；留空则自动跟随最新兼容提交，`SUSFS_DEV` 保持关闭。手动指定的提交如果接口检查不通过，只给警告、继续编译。该参数只改变后续构建，不会恢复已刷入的内核。
 
 ## 自动维护
+
+实验分支不会自动合并新的 BakaSU main。以后升级时必须同步更新 fork 的 `kernel/tools/susfs_manager_commit`、本项目的 `manifests/bakasu-susfs.commit`，并重新验证接口、生产工具链构建和实机；不要把当前适配理解为对未来上游任意改动的保证。下面的原维护任务仍主要服务保留的旧模式。
 
 [Daily Maintenance](.github/workflows/maintenance.yml) 每天北京时间 09:17 运行：
 

@@ -18,9 +18,12 @@ static 函数，此时内核能打上补丁，却会在最后链接时报 undefi
 全部满足返回 0；有缺失返回 1 并列出缺失的符号；参数或目录错误返回 2。
 这只是接口（链接）层面的检查，不能代替编译和实机验证。
 """
+import argparse
 import re
 import sys
 from pathlib import Path
+
+from bakasu_susfs_compat import CompatError, guarded_preinit_lines, load_profile
 
 IDENT = r"[A-Za-z_]\w*"
 # 声明中可能出现在变量名后面的修饰
@@ -66,8 +69,8 @@ def _def_patterns(sym: str):
     e = re.escape(sym)
     head = r"^(?!\s)(?!extern\b)(?!#)(?!typedef\b)(?!return\b)"
     return [
-        # 函数定义：行首开始、符号后跟 (，该行没有 ;（函数头可以换行）
-        re.compile(head + r"([^;=(\n]*?)\b" + e + r"\s*\([^;\n]*$", re.M),
+        # 函数定义必须有函数体：接受跨行参数/单行函数，拒绝只有声明的多行原型。
+        re.compile(head + r"([^;=(\n]*?)\b" + e + r"\s*\([^;{}]*\)\s*(?:#[^\n]*\n\s*)*\{", re.M),
         # 变量定义（行首，带初始化或直接 ;）
         re.compile(head + r"([^;(\n]*?)\b" + e + VAR_SUFFIX + r"\s*(=|;)", re.M),
         # DEFINE_STATIC_KEY_TRUE/FALSE(sym)、DEFINE_PER_CPU(type, sym) 等（可能缩进在 #ifdef 块里）
@@ -109,11 +112,14 @@ def load_sources(root: Path, exts=(".c", ".h")) -> list:
 
 
 def main() -> int:
-    if len(sys.argv) not in (3, 4):
-        print(__doc__)
-        return 2
-    susfs, ksu = Path(sys.argv[1]), Path(sys.argv[2])
-    common = Path(sys.argv[3]) if len(sys.argv) == 4 else None
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("susfs", type=Path)
+    parser.add_argument("ksu", type=Path)
+    parser.add_argument("common", nargs="?", type=Path)
+    parser.add_argument("--bakasu-legacy-init", action="store_true",
+                        help="require downstream profile v1; honor guarded KSU_NO_PREINIT blocks")
+    args = parser.parse_args()
+    susfs, ksu, common = args.susfs, args.ksu, args.common
     patches = sorted(susfs.glob("50_add_susfs_in_gki-*.patch"))
     if not patches:
         print(f"::error title=SUSFS check::{susfs} 下没有 50_add_susfs_in_gki-*.patch")
@@ -123,7 +129,17 @@ def main() -> int:
         return 2
     lines = []
     for p in patches:
-        lines += added_lines(p.read_text(errors="replace"))
+        patch_lines = added_lines(p.read_text(errors="replace"))
+        if args.bakasu_legacy_init:
+            try:
+                load_profile(ksu)
+                patch_lines = guarded_preinit_lines(patch_lines)
+            except (CompatError, OSError) as exc:
+                print(f"::error title=SUSFS check::{exc}")
+                return 1
+        lines += patch_lines
+    if args.bakasu_legacy_init:
+        print("BakaSU profile v1: KSU_NO_PREINIT=1; legacy init.rc/ksud (NOT a preinit implementation)")
     wanted = extern_symbols(lines)
 
     # SUSFS 自己提供的定义：补丁新增行 + kernel_patches 下的源码（fs/susfs.c 等）

@@ -4,10 +4,12 @@ on:
     inputs:
       MANAGER_SOURCE:
         type: choice
-        description: "KernelSU 分支(SPOOF=伪装版管理器)"
+        description: "KernelSU 分支(BAKASU=最新版修复版，RESUKISU=旧版回退，SPOOF=伪装)"
         required: true
-        default: RESUKISU
+        default: BAKASU
         options:
+          - BAKASU
+          - BAKASU_SPOOF
           - RESUKISU
           - RESUKISU_SPOOF
           - SUKISU
@@ -417,6 +419,8 @@ jobs:
 
           # ARTIFACT 为上游 build-manager.yml 产物名（区分大小写）
           case "$MANAGER_SOURCE" in
+            BAKASU)        REPO="Baka-SU/BakaSU";            ARTIFACT="Manager-release";         DEFAULT_KSU_BRANCH="susfs-android12-5.10" ;;
+            BAKASU_SPOOF)  REPO="Baka-SU/BakaSU";            ARTIFACT="Spoofed-Manager-release"; DEFAULT_KSU_BRANCH="susfs-android12-5.10" ;;
             RESUKISU)       REPO="Baka-SU/BakaSU";            ARTIFACT="Manager-release";         DEFAULT_KSU_BRANCH="main" ;;
             RESUKISU_SPOOF) REPO="Baka-SU/BakaSU";            ARTIFACT="Spoofed-Manager-release"; DEFAULT_KSU_BRANCH="main" ;;
             # SukiSU-Ultra：内核取 builtin 分支（内置 SUSFS 接口），管理器取 main 分支 CI；
@@ -429,6 +433,18 @@ jobs:
               ;;
           esac
 
+          # 内核取自己的 kernel-only 修复分支；管理器仍使用同基线的官方签名 APK。
+          KERNEL_REPO="$REPO"
+          IS_BAKASU_COMPAT=false
+          if [[ "$MANAGER_SOURCE" == BAKASU || "$MANAGER_SOURCE" == BAKASU_SPOOF ]]; then
+            KERNEL_REPO="suhuli/BakaSU"
+            IS_BAKASU_COMPAT=true
+            if [[ "${{ github.event.inputs.SUSFS_META }}" == "-1" ]]; then
+              echo "::error title=SUSFS_META::BAKASU 是最新版 SUSFS 适配测试配置，不能关闭 SUSFS；不使用 SUSFS 时请选择 RESUKISU"
+              exit 1
+            fi
+          fi
+
           if [[ "$REPO" == "SukiSU-Ultra/SukiSU-Ultra" && "${{ github.event.inputs.SUSFS_META }}" == "-1" ]]; then
             # builtin 分支没有自己的 syscall/kprobe 钩子，execve、faccessat、stat 等钩子由 SUSFS 内核补丁调用；
             # 关闭 SUSFS 也能编译通过，但刷入后没有 root，所以直接拒绝
@@ -439,12 +455,18 @@ jobs:
           echo "manager_branch=main" >> "$GITHUB_OUTPUT"
           echo "manager_artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
           echo "manager_repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "kernel_repo=$KERNEL_REPO" >> "$GITHUB_OUTPUT"
+          echo "bakasu_compat=$IS_BAKASU_COMPAT" >> "$GITHUB_OUTPUT"
           echo "default_ksu_branch=$DEFAULT_KSU_BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Add KernelSU
         run: |
           cd kernel_workspace/kernel_platform
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
+          KERNEL_REPO="${{ steps.manager.outputs.kernel_repo }}"
+          IS_BAKASU_COMPAT="${{ steps.manager.outputs.bakasu_compat }}"
+          echo "IS_BAKASU_COMPAT=$IS_BAKASU_COMPAT" >> "$GITHUB_ENV"
+          echo "KSU_KERNEL_REPO=$KERNEL_REPO" >> "$GITHUB_ENV"
           DEFAULT_KSU_BRANCH="${{ steps.manager.outputs.default_ksu_branch }}"
           KSU_META="${{ github.event.inputs.KSU_META }}"
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
@@ -453,6 +475,15 @@ jobs:
           RESUKISU_COMMIT="5b76b884c75f729a220bb317aa4a4fc78f0e0e9c"  # BakaSU，35222/UAPI 5；SUSFS 限制之前的最后一个主线提交
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5"  # SukiSU-Ultra builtin 分支（2026-10-20，UAPI 6），已核对与保底 SUSFS 31eb14ad 接口一致
+
+          BAKASU_COMPAT_COMMIT=""
+          if [[ "$IS_BAKASU_COMPAT" == true ]]; then
+            BAKASU_COMPAT_COMMIT=$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/manifests/bakasu-susfs.commit")
+            if [[ ! "$BAKASU_COMPAT_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=BakaSU::manifests/bakasu-susfs.commit 必须记录完整的适配提交 SHA"
+              exit 1
+            fi
+          fi
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -483,17 +514,23 @@ jobs:
             KSU_REF="$MANUAL_HASH"
           elif [[ -n "$USER_BRANCH" ]]; then
             KSU_REF="origin/$USER_BRANCH"
+          elif [[ "${IS_BAKASU_COMPAT:-false}" == true ]]; then
+            KSU_REF="$BAKASU_COMPAT_COMMIT"; EXPECT_COMMIT="$BAKASU_COMPAT_COMMIT"
           elif [[ "$IS_RESUKISU" == true ]]; then
             KSU_REF="$RESUKISU_COMMIT"; EXPECT_COMMIT="$RESUKISU_COMMIT"
           else
             KSU_REF="$SUKISU_BUILTIN_COMMIT"; EXPECT_COMMIT="$SUKISU_BUILTIN_COMMIT"
           fi
-          echo "KernelSU: ${MANAGER_REPO} @ ${KSU_REF}"
+          echo "KernelSU: ${KERNEL_REPO} @ ${KSU_REF}"
           [[ -n "$CUSTOM_TAG" ]] && echo "自定义版本标识: $CUSTOM_TAG" || echo "自定义版本标识: 未启用"
 
           # 完整克隆：版本号由提交数计算（SukiSU-Ultra 按 main 分支提交数），版本名取自 tag。
           # 不用官方 setup.sh：它会 pull/stash，并且 checkout 失败时只打印一行就继续，可能悄悄用错版本
-          git clone -q "https://github.com/${MANAGER_REPO}.git" KernelSU
+          git clone -q "https://github.com/${KERNEL_REPO}.git" KernelSU
+          if [[ "$IS_BAKASU_COMPAT" == true ]]; then
+            # Fork 可能没有上游 release tags；只拉到本次构建的本地克隆，不向远端推 tag/main。
+            git -C KernelSU fetch -q --tags https://github.com/Baka-SU/BakaSU.git
+          fi
           git -C KernelSU -c advice.detachedHead=false checkout -q "$KSU_REF"
           ACTUAL_COMMIT=$(git -C KernelSU rev-parse HEAD)
           if [[ -n "$EXPECT_COMMIT" && "$ACTUAL_COMMIT" != "$EXPECT_COMMIT" ]]; then
@@ -511,6 +548,18 @@ jobs:
             echo "::error title=BakaSU/SUSFS::${ACTUAL_COMMIT::8} 的上游源码禁止带 SUSFS 编译；请使用固定的 5b76b884 或等待上游解除限制，不要删除错误检查"
             exit 1
           fi
+
+          KSU_MANAGER_SHA="$ACTUAL_COMMIT"
+          if [[ "$IS_BAKASU_COMPAT" == true ]]; then
+            PAIRING=$(python3 "$GITHUB_WORKSPACE/scripts/bakasu_manager_pair.py" KernelSU)
+            echo "$PAIRING" | tee "$GITHUB_WORKSPACE/bakasu-pairing.json"
+            KSU_MANAGER_SHA=$(jq -r .manager_sha <<< "$PAIRING")
+            BAKASU_MANAGER_VERSION=$(jq -r .manager_version_code <<< "$PAIRING")
+            echo "MANAGER_VERSION_CODE=$BAKASU_MANAGER_VERSION" >> "$GITHUB_ENV"
+            echo "KSU_UAPI=$(jq -r .uapi_version <<< "$PAIRING")" >> "$GITHUB_ENV"
+            echo "BAKASU_INIT_MODE=legacy-initrc-no-preinit" >> "$GITHUB_ENV"
+          fi
+          echo "KSU_MANAGER_SHA=$KSU_MANAGER_SHA" >> "$GITHUB_ENV"
 
           # 接入内核（等同于官方 setup.sh 的接入步骤）
           DRIVER_DIR="common/drivers"; [[ -d "$DRIVER_DIR" ]] || DRIVER_DIR="drivers"
@@ -571,7 +620,8 @@ jobs:
 
           # 预估版本号；编译后以内核实际打印的版本号为准
           if [[ "$IS_RESUKISU" == true ]]; then
-            COMMIT_COUNT=$(git rev-list --count HEAD)
+            # 修复版按未改动的上游管理器基线计数，避免下游补丁提交造成 APK 版本号不匹配。
+            COMMIT_COUNT=$(git rev-list --count "$KSU_MANAGER_SHA")
             KSU_VERSION=$((30000 + COMMIT_COUNT + 700))
           else
             # 与上游 Makefile 相同：40000 + main 分支提交数 - 2815（builtin 分支自身的提交数不参与计算）
@@ -731,7 +781,11 @@ jobs:
             # 是已验证可与 BakaSU 5b76b884 / SukiSU-Ultra builtin 一起编译的最新提交。
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
             SUSFS_AUTO=false
-            if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
+            SUSFS_STRICT=false
+            if [[ "${IS_BAKASU_COMPAT:-false}" == true ]]; then
+              SUSFS_STRICT=true
+              echo "SUSFS: BakaSU 修复版严格使用所选分支最新提交，不自动降级"
+            elif [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_AUTO=true
               echo "SUSFS: 自动使用最新兼容提交（保底 ${STABLE_SUSFS_COMMIT::8}）"
             fi
@@ -739,7 +793,12 @@ jobs:
             cd susfs4ksu
             KSU_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel"
             COMMON_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
-            susfs_ok() { python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"; }
+            susfs_ok() {
+              local profile=()
+              [[ "${IS_BAKASU_COMPAT:-false}" == true ]] && profile+=(--bakasu-legacy-init)
+              python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC" "${profile[@]}"
+            }
+            SUSFS_BRANCH_HEAD=$(git rev-parse HEAD)
             SUSFS_NOTE=""
             # --- 选择 SUSFS 提交 ---
             if [[ "$SUSFS_AUTO" == true ]]; then
@@ -767,7 +826,7 @@ jobs:
                 echo "SUSFS 使用分支最新提交 ${SUSFS_PICK::8}"
               fi
             elif [[ -z "$SUSFS_META" ]]; then
-              echo "SUSFS 使用开发分支最新提交"
+              echo "SUSFS 使用所选分支最新提交"
             elif [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
               git checkout HEAD~$SUSFS_META
             else
@@ -775,12 +834,21 @@ jobs:
             fi
             # --- 选择结束 ---
             if [[ "$SUSFS_AUTO" != true ]] && ! susfs_ok; then
+              if [[ "$SUSFS_STRICT" == true ]]; then
+                echo "::error title=BakaSU/SUSFS::最新版接口检查失败，停止构建；不会悄悄回退到旧 SUSFS"
+                exit 1
+              fi
               echo "::warning title=SUSFS::手动指定的 SUSFS $(git rev-parse --short=8 HEAD) 可能与当前 KernelSU 接口不兼容（见上方缺失符号），继续编译，链接阶段可能失败"
+            fi
+            if [[ "$SUSFS_STRICT" == true ]]; then
+              SUSFS_NOTE="实验性 5.10 适配；保留 init.rc/ksud，未启用新 preinit runner"
             fi
             SUSFS_VER=$(grep -o 'SUSFS_VERSION "[^"]*"' kernel_patches/include/linux/susfs.h | cut -d'"' -f2)
             echo "SUSFS: $(git log -1 --format='%h %s') ($SUSFS_VER)"
             echo "SUSFS_VER=$SUSFS_VER" >> "$GITHUB_ENV"
             echo "SUSFS_SHA=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
+            echo "SUSFS_FULL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+            echo "SUSFS_BRANCH_HEAD=$SUSFS_BRANCH_HEAD" >> "$GITHUB_ENV"
             echo "SUSFS_NOTE=$SUSFS_NOTE" >> "$GITHUB_ENV"
             cd ..
           fi
@@ -808,6 +876,10 @@ jobs:
             if [[ "$IS_RESUKISU" != true ]]; then
               # SukiSU-Ultra builtin 与 SUSFS 补丁的变量类型不一致（ksu_su_compat_enabled），见脚本说明
               python3 "$GITHUB_WORKSPACE/scripts/ksu_susfs_compat.py" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
+            fi
+            if [[ "${IS_BAKASU_COMPAT:-false}" == true ]]; then
+              python3 "$GITHUB_WORKSPACE/scripts/bakasu_susfs_compat.py" "$KSU_SRC" .
+              python3 "$GITHUB_WORKSPACE/scripts/bakasu_susfs_compat.py" "$KSU_SRC" . --check
             fi
             echo "susfs_patch完成"
           fi
@@ -1167,6 +1239,12 @@ jobs:
           if [[ -n "${MANAGER_VERSION_CODE:-}" && -n "$CODE" && "$CODE" != "$MANAGER_VERSION_CODE" ]]; then
             echo "::warning title=KSU Version::内核版本号 $CODE 与附带的管理器 $MANAGER_VERSION_CODE 不一致，管理器会提示版本不匹配"
           fi
+          if [[ "${IS_BAKASU_COMPAT:-false}" == true ]]; then
+            if [[ -z "$CODE" || "$CODE" != "${MANAGER_VERSION_CODE:-}" ]]; then
+              echo "::error title=BakaSU pairing::无法确认修复版内核与官方管理器的版本号完全一致"
+              exit 1
+            fi
+          fi
           if [[ "$NAME" == *-dirty* ]]; then
             echo "::warning title=KSU Version::版本名带有 -dirty：$NAME"
           fi
@@ -1240,6 +1318,9 @@ jobs:
           MANAGER_ARTIFACT="${{ steps.manager.outputs.manager_artifact }}"
           MANAGER_REPO="${{ steps.manager.outputs.manager_repo }}"
 
+          # 下游只改内核：APK 必须来自经验证未改动的官方源码基线，而不是 fork 的额外补丁提交。
+          MANAGER_SHA="${KSU_MANAGER_SHA:-$KSU_SHA}"
+
           # 下载指定 CI 运行中的管理器构建产物
           ATTACHED=()
           fetch_artifact() {  # 运行ID [产物名...]（默认 $MANAGER_ARTIFACT）
@@ -1292,8 +1373,8 @@ jobs:
             fi
 
             # 2) BakaSU 固定提交（包括默认 5b76b884）及自定义版本：只取同一提交的 CI 构建
-            RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${KSU_SHA}&status=success&per_page=20" \
-              --jq "[.workflow_runs[] | select(.event == \"push\" and .head_sha == \"$KSU_SHA\")][0].id // empty" || true)
+            RUN_ID=$(gh api "repos/${MANAGER_REPO}/actions/workflows/build-manager.yml/runs?head_sha=${MANAGER_SHA}&status=success&per_page=20" \
+              --jq "[.workflow_runs[] | select(.event == \"push\" and .head_sha == \"$MANAGER_SHA\")][0].id // empty" || true)
             if [[ -n "$RUN_ID" ]] && fetch_artifact "$RUN_ID"; then
               exit 0
             fi
@@ -1308,7 +1389,7 @@ jobs:
                 exit 0
               fi
             fi
-            echo "::warning title=Manager::没有找到与内核 ${KSU_SHA::8} 对应的管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
+            echo "::warning title=Manager::没有找到源码基线 ${MANAGER_SHA::8} 的匹配管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
             exit 0
           fi
 
@@ -1322,6 +1403,12 @@ jobs:
           for apk in "${APKS[@]}"; do
             mv "$apk" ./AnyKernel3/ && echo "已附带: $(basename "$apk")"
           done
+
+      - name: Write Build Provenance
+        if: ${{ env.IS_BAKASU_COMPAT == 'true' }}
+        env:
+          BUILD_MANAGER_REPO: ${{ steps.manager.outputs.manager_repo }}
+        run: python3 scripts/build_provenance.py AnyKernel3/build-info.json
 
       - name: Set zip Suffix
         id: suffix
@@ -1355,7 +1442,7 @@ jobs:
           [[ -n "${SUSFS_VER:-}" ]] && TITLE="$TITLE + SUSFS ${SUSFS_VER}"
           # 不是固定的正式版本时标记为预发布
           PRE=""
-          if [[ "${KSU_PINNED:-false}" != "true" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
+          if [[ "${IS_BAKASU_COMPAT:-false}" == "true" || "${KSU_PINNED:-false}" != "true" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
 
           ASSETS=("$ZIP")
           for apk in AnyKernel3/*.apk; do [[ -f "$apk" ]] && ASSETS+=("$apk"); done
@@ -1371,6 +1458,10 @@ jobs:
             echo "| 组件 | 版本 |"
             echo "|---|---|"
             echo "| ${KSU_LABEL} | ${KSU_NAME:-?}（版本号 ${KSUVER}，提交 ${KSU_SHA::8}） |"
+            if [[ "${IS_BAKASU_COMPAT:-false}" == true ]]; then
+              echo "| 官方管理器基线 | ${KSU_MANAGER_SHA}（UAPI ${KSU_UAPI}） |"
+              echo "| 初始化兼容模式 | 保留 init.rc/ksud；新 preinit runner 未启用；实验性适配 |"
+            fi
             [[ -n "${SUSFS_VER:-}" ]] && echo "| SUSFS | ${SUSFS_VER}（${SUSFS_SHA}）${SUSFS_NOTE:+<br>${SUSFS_NOTE}} |"
             [[ "${{ github.event.inputs.LSM_BBG }}" == "true" ]] && echo "| Baseband-guard | ${BBG_COMMIT::8} |"
             echo "| AnyKernel3 | ${AK3_COMMIT::8} |"
