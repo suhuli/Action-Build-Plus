@@ -102,7 +102,8 @@ permissions:
 jobs:
   build:
     name: ${{ startsWith(github.event.inputs.MANAGER_SOURCE, 'SUKISU') && (github.event.inputs.KPM == 'KPM' && '[SukiSU][KPM] ' || github.event.inputs.KPM == 'KPN' && '[SukiSU][KPN] ' || '[SukiSU] ') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '[BBG] ' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && '[DS] ' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '[REKER] ' || '' }}OnePlus Ace Race T ${{ github.event.inputs.SUFFIX }}
-    runs-on: ubuntu-latest
+    # Keep the legacy OnePlus toolchain on a known build environment.
+    runs-on: ubuntu-22.04
     # 历次成功构建 10～25 分钟；卡住时 90 分钟后自动终止，而不是占满默认的 6 小时
     timeout-minutes: 90
     env:
@@ -114,8 +115,8 @@ jobs:
       CCACHE_HARDLINK: "true"
       CCACHE_MAXSIZE: 8G
       # 固定版本，maintenance.yml 每天检查上游是否有新提交
-      AK3_COMMIT: 0fc7569866bb5d5fe51752cc410dca3e92ab332f  # Numbersf/AnyKernel3
-      BBG_COMMIT: a54e0dc6cf0aff4dd87fec49644a02d2eb612905  # vc-teahouse/Baseband-guard
+      AK3_COMMIT: 47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7  # Numbersf/AnyKernel3 v31.0 beta (requested update)
+      BBG_COMMIT: 028ff7fd509e2104596da7cc1ef8e6ce2a0c9082  # vc-teahouse/Baseband-guard
       SUKISU_PATCH_COMMIT: 7c6289c95bdc786119b03d150236853b7b4872ca  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
     steps:
       - name: Checkout
@@ -253,11 +254,22 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Install Dependencies + APTC
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with: 
-          packages: python3 git curl ccache libelf-dev build-essential flex bison libssl-dev libncurses-dev liblz4-tool zlib1g-dev libxml2-utils rsync unzip gawk dos2unix kmod libdw-dev elfutils
-          execute_install_scripts: true
+      - name: Install Build Dependencies
+        run: |
+          # APT caching is optional; installing the actual compiler prerequisites is not.
+          # The previous cache-apt action silently skipped installs on ubuntu-26.04.
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3 git curl ccache build-essential bc flex bison libelf-dev libssl-dev \
+            libncurses-dev libncurses5 libtinfo5 lz4 zstd xz-utils zlib1g-dev libxml2-utils rsync unzip zip \
+            gawk dos2unix kmod libdw-dev elfutils
+          for tool in ccache make gcc bc flex bison python3 git curl rsync unzip zip; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error title=Build dependencies::Required tool $tool is still missing after apt install"
+              exit 1
+            fi
+          done
+          ccache --version
 
       # 缓存写入后不能覆盖，所以每次以运行 ID 结尾保存新缓存，恢复时取同前缀中最新的一份
       - name: Restore Ccache
@@ -273,6 +285,10 @@ jobs:
         if: ${{ github.event.inputs.BUILD_NOCCACHE == 'false' }}
         run: |
           INIT_FLAG="${{ env.CCACHE_DIR }}/.ccache_initialized"
+          if ! command -v ccache >/dev/null 2>&1; then
+            echo "::error title=ccache::Required ccache executable is missing; dependency installation must succeed"
+            exit 1
+          fi
           if command -v ccache >/dev/null 2>&1; then
             if [ ! -f "$INIT_FLAG" ]; then
               echo "初始化 ccache (${{ env.CCACHE_DIR }})..."
@@ -283,8 +299,6 @@ jobs:
             else
               echo "✅ ccache 已初始化，跳过"
             fi
-          else
-            echo "❌ 未安装 ccache，跳过"
           fi
           ccache -s
 
@@ -450,7 +464,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="5b76b884c75f729a220bb317aa4a4fc78f0e0e9c"  # BakaSU，35222/UAPI 5；SUSFS 限制之前的最后一个主线提交
+          RESUKISU_COMMIT="d5e9e025b8b49155f8014684d64c91742b465f65"  # Official BakaSU main, 2026-10-24; native preinit + SUSFS support
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5"  # SukiSU-Ultra builtin 分支（2026-10-20，UAPI 6），已核对与保底 SUSFS 31eb14ad 接口一致
 
@@ -508,7 +522,7 @@ jobs:
           # 不删除/绕过上游 SUSFS 编译限制；自定义新提交时提前给出清晰错误。
           if [[ "$IS_RESUKISU" == true && "${{ github.event.inputs.SUSFS_META }}" != "-1" ]] &&
              grep -qE '^[[:space:]]*\$\(error[[:space:]]+Please wait susfs update\.' KernelSU/kernel/tools/susfs_compat.mk; then
-            echo "::error title=BakaSU/SUSFS::${ACTUAL_COMMIT::8} 的上游源码禁止带 SUSFS 编译；请使用固定的 5b76b884 或等待上游解除限制，不要删除错误检查"
+            echo "::error title=BakaSU/SUSFS::${ACTUAL_COMMIT::8} 的上游源码禁止带 SUSFS 编译；请使用当前固定版本或显式回退旧版；不要绕过上游限制，不要删除错误检查"
             exit 1
           fi
 
@@ -522,7 +536,7 @@ jobs:
           echo "KSU_SHA=$ACTUAL_COMMIT" >> "$GITHUB_ENV"
           echo "KSU_PINNED=$([[ -n "$EXPECT_COMMIT" ]] && echo true || echo false)" >> "$GITHUB_ENV"
           # 只有源码确实对应 release，才可附带该 release 的管理器。
-          # 默认 5b76b884 必须取同一提交的 CI，不能误附 239e1e88 的 APK。
+          # 默认 BakaSU 必须取同一提交的 CI，不能误附旧 release 的 APK。
           if [[ "$IS_RESUKISU" == true && "$ACTUAL_COMMIT" == "$RESUKISU_RELEASE_COMMIT" ]]; then
             echo "RESUKISU_RELEASE=$RESUKISU_TAG" >> "$GITHUB_ENV"
           fi
@@ -727,9 +741,13 @@ jobs:
             SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
             # 留空（且未开 SUSFS_DEV）= 自动跟随 SUSFS 分支最新提交：从分支 HEAD 往回逐个检查，
             # 选第一个与当前 KernelSU 源码接口兼容的提交（scripts/susfs_ksu_check.py），最多回退到下面的保底提交。
-            # 保底提交 v2.3.0（gki-android12-5.10 分支，包含 6c931c0d 的 SELinux 状态修复和 31eb14ad 的 selinux_hide sidtab 同步修复），
-            # 是已验证可与 BakaSU 5b76b884 / SukiSU-Ultra builtin 一起编译的最新提交。
+            # Keep the old SukiSU builtin/explicit legacy BakaSU rollback compatible.
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
+            # Default modern BakaSU must not silently fall back before this UAF fix.
+            BAKASU_SUSFS_COMMIT="eb95da080c76724c4962d0c62e9af3be37d9d439"
+            if [[ "${IS_RESUKISU:-false}" == true && "${KSU_SHA:-}" == "d5e9e025b8b49155f8014684d64c91742b465f65" ]]; then
+              STABLE_SUSFS_COMMIT="$BAKASU_SUSFS_COMMIT"
+            fi
             SUSFS_AUTO=false
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_AUTO=true
@@ -1356,6 +1374,8 @@ jobs:
           # 不是固定的正式版本时标记为预发布
           PRE=""
           if [[ "${KSU_PINNED:-false}" != "true" ]] || [[ "${KSU_NAME:-}" =~ -(rc|alpha|beta)[0-9]* ]]; then PRE="--prerelease"; fi
+          # AnyKernel3 v31.0 beta is deliberately selected; do not label builds stable.
+          [[ "$AK3_COMMIT" == "47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7" ]] && PRE="--prerelease"
 
           ASSETS=("$ZIP")
           for apk in AnyKernel3/*.apk; do [[ -f "$apk" ]] && ASSETS+=("$apk"); done

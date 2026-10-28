@@ -97,6 +97,42 @@ def find_definitions(sym: str, files: list) -> list:
     return found
 
 
+def bakasu_selinux_alias(susfs_lines: list, ksu: Path, files: list) -> list:
+    """Resolve one audited upstream macro, not arbitrary C preprocessor branches.
+
+    BakaSU susfs_compat.mk enables this macro only when the SUSFS hook is
+    present in security/selinux/hooks.c. Require that exact detection contract,
+    the hook in the selected patch, and a real non-static source definition.
+    Do not manufacture an implementation or suppress missing symbols.
+    """
+    flag = "KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE"
+    mk = ksu / "tools/susfs_compat.mk"
+    try:
+        contract = mk.read_text()
+    except OSError:
+        return files
+    patch_text = "\n".join(susfs_lines)
+    if not re.search(r"extern\s+bool\s+ksu_selinux_hide_running\b", patch_text):
+        return files
+    contract_pattern = (
+        r'ifeq \(\$\(shell grep -q "ksu_selinux_hide_running" '
+        r'\$\(srctree\)/security/selinux/hooks\.c; echo \$\$\?\),0\)'
+        r'\s*\$\(info[^\n]*\)\s*ccflags-y \+= -D' + flag + r'\s*endif'
+    )
+    if not re.search(contract_pattern, contract):
+        return files
+    original, alias = "ksu_handle_selinux_setprocattr", "my_setprocattr"
+    macro = re.compile(r"^#ifdef " + flag + r"\s*\n[ \t]*#define "
+                       + original + r"[ \t]+" + alias + r"[ \t]*$", re.M)
+    out = []
+    for path, text in files:
+        if macro.search(text) and any(not st for _, st in find_definitions(original, [(path, text)])):
+            # Rename only this audited function identifier in this translation unit.
+            text = re.sub(r"\b" + original + r"\b", alias, text)
+        out.append((path, text))
+    return out
+
+
 def load_sources(root: Path, exts=(".c", ".h")) -> list:
     files = []
     for p in root.rglob("*"):
@@ -132,6 +168,7 @@ def main() -> int:
         if (susfs / sub).is_dir():
             susfs_files += load_sources(susfs / sub)
     ksu_files = load_sources(ksu, exts=(".c",))
+    ksu_files = bakasu_selinux_alias(lines, ksu, ksu_files)
 
     missing, static_only, from_ksu, from_kernel = [], [], [], []
     common_files = None

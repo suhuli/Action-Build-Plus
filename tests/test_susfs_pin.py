@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
 PIN = '31eb14add587b0a089dfe1819f92cc94920e141e'
 OLD = 'ca7093a1a26f7911987110c34a1352d74cfb1d09'
-BAKA = '5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'
+BAKA = 'd5e9e025b8b49155f8014684d64c91742b465f65'
 SUKI = '05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5'
 
 

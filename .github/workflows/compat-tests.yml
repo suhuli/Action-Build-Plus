@@ -1,0 +1,15 @@
+name: Offline regression tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run source selection, interface and manager regression tests
+        run: python3 -m unittest discover -s tests -v

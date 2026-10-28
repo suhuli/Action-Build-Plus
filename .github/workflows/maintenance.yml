@@ -26,14 +26,14 @@ jobs:
           SUSFS_BRANCH: gki-android12-5.10
           LABEL: upstream-update
           # 看过但暂不跟进的上游提交（空格分隔），最新提交是其中之一时不提醒
-          REVIEWED: >-
-            47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7
+          REVIEWED: ""
         run: |
           set -euo pipefail
           WF=".github/workflows/Build Kernel OnePlus.yml"
           CUR_TAG=$(grep -oP 'RESUKISU_TAG="\K[^"]+' "$WF")
           CUR_RESUKISU=$(grep -oP 'RESUKISU_COMMIT="\K[0-9a-f]{40}' "$WF")
           CUR_SUSFS=$(grep -oP 'STABLE_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
+          CUR_BAKA_SUSFS=$(grep -oP 'BAKASU_SUSFS_COMMIT="\K[0-9a-f]+' "$WF")
           CUR_AK3=$(grep -oP '^ +AK3_COMMIT: \K[0-9a-f]{40}' "$WF")
           CUR_BBG=$(grep -oP '^ +BBG_COMMIT: \K[0-9a-f]{40}' "$WF")
           CUR_SUKISU=$(grep -oP 'SUKISU_BUILTIN_COMMIT="\K[0-9a-f]{40}' "$WF")
@@ -65,7 +65,7 @@ jobs:
             if susfs_blocked "$NEW_TAG"; then
               BODY+="> ⚠️ \`${NEW_TAG}\` 的源码仍禁止带 SUSFS 编译（\`Please wait susfs update.\`），构建会失败，暂勿升级。"$'\n\n'
             fi
-          elif ! susfs_blocked main; then
+          elif [[ "$(gh api "repos/${RESUKISU_REPO}/commits/main" --jq .sha)" != "$CUR_RESUKISU" ]] && ! susfs_blocked main; then
             # 还没有新 release，但 main 已经解除限制：提醒一次，便于提前测试
             case "$(gh api "repos/${RESUKISU_REPO}/issues/622" --jq '.state' 2>/dev/null)" in
               open) ISSUE_622="未修复（open）" ;;
@@ -84,10 +84,15 @@ jobs:
             BODY+="当前固定 \`${CUR_RESUKISU::8}\`；最新主线 \`${MAIN_SHA::8}\` 仍有 SUSFS 编译限制，保持固定提交，不自动升级。"$'\n\n'
           fi
 
+          if [[ "$MAIN_SHA" != "$CUR_RESUKISU" ]] && ! susfs_blocked "$MAIN_SHA"; then
+            BODY+="### BakaSU main 新提交"$'\n'
+            BODY+="当前固定 \`${CUR_RESUKISU::8}\` → 最新 [\`${MAIN_SHA::8}\`](https://github.com/${RESUKISU_REPO}/commit/${MAIN_SHA})；升级前核对 preinit、SUSFS 与同提交管理器。"$'\n\n'
+          fi
+
           # SUSFS：分支最新提交（与保底提交不同时提醒，并检查与固定 KernelSU 的接口兼容性）
           API="https://gitlab.com/api/v4/projects/${SUSFS_PROJECT}/repository"
           HEAD=$(curl -fsSL "${API}/branches/${SUSFS_BRANCH}" | jq -r '.commit.id')
-          if [[ "$HEAD" != "$CUR_SUSFS" ]]; then
+          if [[ "$HEAD" != "$CUR_SUSFS" || "$HEAD" != "$CUR_BAKA_SUSFS" ]]; then
             VER=$(curl -fsSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/${HEAD}/kernel_patches/include/linux/susfs.h" \
               | grep -oP 'SUSFS_VERSION "\K[^"]+' || echo "?")
             COMMITS=$(curl -fsSL "${API}/compare?from=${CUR_SUSFS}&to=${HEAD}" \
@@ -109,7 +114,7 @@ jobs:
               fi
             }
             BODY+="### SUSFS ${VER}（${SUSFS_BRANCH}）"$'\n'
-            BODY+="保底提交 \`${CUR_SUSFS::8}\` → 最新 [\`${HEAD::8}\`](https://gitlab.com/simonpunk/susfs4ksu/-/commits/${SUSFS_BRANCH})。构建默认自动使用与固定 KernelSU 接口兼容的最新提交，最新提交的检查结果："$'\n\n'
+            BODY+="BakaSU 保底 \`${CUR_BAKA_SUSFS::8}\` / SukiSU 与旧版回退保底 \`${CUR_SUSFS::8}\` → 最新 [\`${HEAD::8}\`](https://gitlab.com/simonpunk/susfs4ksu/-/commits/${SUSFS_BRANCH})。构建默认自动使用与固定 KernelSU 接口兼容的最新提交，最新提交的检查结果："$'\n\n'
             BODY+="$(ksu_compat BakaSU "$RESUKISU_REPO" "$CUR_RESUKISU")"$'\n'
             BODY+="$(ksu_compat "SukiSU-Ultra builtin" SukiSU-Ultra/SukiSU-Ultra "$CUR_SUKISU")"$'\n\n'
             BODY+="${COMMITS}"$'\n\n'
@@ -139,7 +144,7 @@ jobs:
             exit 0
           fi
 
-          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_COMMIT\`（只有切回 release 源码才同步 \`RESUKISU_TAG\` / \`RESUKISU_RELEASE_COMMIT\`） / \`SUKISU_BUILTIN_COMMIT\` / \`STABLE_SUSFS_COMMIT\`（SUSFS 保底提交；构建默认已自动跟随最新兼容提交） / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
+          BODY="上游有新版本。更新时修改工作流中的 \`RESUKISU_COMMIT\`（只有切回 release 源码才同步 \`RESUKISU_TAG\` / \`RESUKISU_RELEASE_COMMIT\`） / \`SUKISU_BUILTIN_COMMIT\` / \`BAKASU_SUSFS_COMMIT\`（默认 BakaSU 保底） / \`STABLE_SUSFS_COMMIT\`（SukiSU/旧版回退保底；构建自动跟随最新兼容提交） / \`AK3_COMMIT\` / \`BBG_COMMIT\` / \`SUKISU_PATCH_COMMIT\`，构建通过并刷机验证后再发布。"$'\n\n'"$BODY"
           echo "$BODY"
           if [[ -z "$ISSUE" ]]; then
             gh label create "$LABEL" --color FBCA04 --description "上游有新版本" 2>/dev/null || true
