@@ -8,9 +8,6 @@ from test_susfs_auto import make_susfs, write, run_check
 from test_bakasu_pin import WF, bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BAKA = 'd5e9e025b8b49155f8014684d64c91742b465f65'
-SUSFS = 'eb95da080c76724c4962d0c62e9af3be37d9d439'
-LEGACY = '31eb14add587b0a089dfe1819f92cc94920e141e'
 CONTRACT = '''ifeq ($(shell grep -q "ksu_selinux_hide_running" $(srctree)/security/selinux/hooks.c; echo $$?),0)
 $(info -- BakaSU/susfs_feature_check: selinux_hide manual hook found)
 ccflags-y += -DKSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE
@@ -60,30 +57,12 @@ class BakaSUAliasTests(unittest.TestCase):
 
 
 class UpdatedPinTests(unittest.TestCase):
-    def source_floor(self, baka=True, sha=BAKA):
-        source = WF.read_text()
-        a = source.index('            STABLE_SUSFS_COMMIT=')
-        b = source.index('            SUSFS_AUTO=false', a)
-        code = textwrap.dedent(source[a:b])
-        r = bash(code + '\nprintf "%s" "$STABLE_SUSFS_COMMIT"',
-                 {'IS_RESUKISU': 'true' if baka else 'false', 'KSU_SHA': sha})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return r.stdout
-
-    def test_modern_bakasu_floor_includes_uaf_fix(self):
-        self.assertEqual(self.source_floor(), SUSFS)
-
-    def test_sukisu_keeps_compatible_floor(self):
-        self.assertEqual(self.source_floor(baka=False), LEGACY)
-
-    def test_explicit_legacy_bakasu_rollback_keeps_old_floor(self):
-        self.assertEqual(self.source_floor(sha='5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'), LEGACY)
-
     def test_anykernel_beta_and_bbg_pins_are_documented(self):
         source = WF.read_text()
+        versions = (ROOT / "config/versions.json").read_text()
         for sha in ['47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7',
                     '028ff7fd509e2104596da7cc1ef8e6ce2a0c9082']:
-            self.assertIn(sha, source)
+            self.assertIn(sha, versions)
             for name in ['README.md', 'README-en.md']:
                 self.assertIn(sha[:8], (ROOT / name).read_text())
         self.assertIn('PRE="--prerelease"', source.split('# AnyKernel3 v31.0 beta', 1)[1])
@@ -92,12 +71,8 @@ class UpdatedPinTests(unittest.TestCase):
         source = WF.read_text()
         self.assertNotIn('test/bakasu-latest-susfs', source)
         self.assertNotIn('suhuli/BakaSU', source)
-        self.assertIn('Baka-SU/BakaSU', source)
+        self.assertIn('Baka-SU/BakaSU', (ROOT / 'config/versions.json').read_text())
 
-    def test_maintenance_tracks_modern_and_legacy_susfs_pins(self):
-        source = (ROOT / '.github/workflows/maintenance.yml').read_text()
-        self.assertIn('CUR_BAKA_SUSFS', source)
-        self.assertIn('BAKASU_SUSFS_COMMIT', source)
 
 
 if __name__ == '__main__':

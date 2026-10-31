@@ -1,0 +1,36 @@
+{
+  "reviewed_at": "2026-10-31",
+  "bakasu": {
+    "repo": "Baka-SU/BakaSU",
+    "branch": "main",
+    "commit": "5785bdb8091304322f597f67d50e0b79f9815cb2"
+  },
+  "sukisu": {
+    "repo": "SukiSU-Ultra/SukiSU-Ultra",
+    "branch": "builtin",
+    "commit": "b16e899a555e9b96aa1225f049cd7274820ca5b8"
+  },
+  "sukisu_manager": {
+    "repo": "SukiSU-Ultra/SukiSU-Ultra",
+    "branch": "main",
+    "commit": "a5742cdae02147973f9cc29db8888de62c1bae9d"
+  },
+  "susfs": {
+    "repo": "https://gitlab.com/simonpunk/susfs4ksu.git",
+    "branch": "gki-android12-5.10",
+    "commit": "8930474a298d07ab9f1beca926779cbc3656b79e"
+  },
+  "kpm": {
+    "repo": "SukiSU-Ultra/SukiSU_patch",
+    "commit": "eec45788c9a115e5498040298133336d6b6071dd",
+    "patch_linux_sha256": "5b4984fbe7771925542d27b159278184cf3ce5064dafb751f8a2fb073b922b3f"
+  },
+  "anykernel3": {
+    "repo": "Numbersf/AnyKernel3",
+    "commit": "47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7"
+  },
+  "bbg": {
+    "repo": "vc-teahouse/Baseband-guard",
+    "commit": "028ff7fd509e2104596da7cc1ef8e6ce2a0c9082"
+  }
+}

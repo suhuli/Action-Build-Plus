@@ -1,4 +1,4 @@
-"""Offline tests for SUSFS auto-selection and the SUSFS ↔ KernelSU interface check.
+"""Offline tests for pinned SUSFS and the SUSFS ↔ KernelSU interface check.
 
 Run: python3 -m unittest discover -s tests -v
 Uses small synthetic sources and a local git repo; no network or kernel build.
@@ -100,78 +100,6 @@ class InterfaceCheckTests(unittest.TestCase):
 
     def test_bad_arguments(self):
         self.assertEqual(run_check(self.root / 'nope', self.root / 'nope').returncode, 2)
-
-
-def selection_script():
-    source = WF.read_text()
-    block = source.split('      - name: Apply SUSFS\n', 1)[1].split('\n      - name:', 1)[0]
-    a = block.index('            # --- 选择 SUSFS 提交 ---')
-    b = block.index('            # --- 选择结束 ---')
-    return textwrap.dedent(block[a:b])
-
-
-class AutoSelectTests(unittest.TestCase):
-    """Run the real selection block against a local git repo with a stubbed checker."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.repo = Path(self.tmp.name)
-        env = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@t',
-               'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@t'}
-        self.env = env
-        git = lambda *a: subprocess.run(['git', *a], cwd=self.repo, env=env, check=True,
-                                        capture_output=True, text=True).stdout.strip()
-        git('init', '-q', '-b', 'main')
-        self.commits = {}
-        for name in ('old', 'stable', 'new1', 'new2', 'head'):
-            (self.repo / 'name').write_text(name)
-            git('add', '-A')
-            git('commit', '-q', '-m', name)
-            self.commits[name] = git('rev-parse', 'HEAD')
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def pick(self, compatible, stable='stable'):
-        # Stub checker: compatible iff the commit name is in the set
-        names = {sha: n for n, sha in self.commits.items()}
-        ok = ' '.join(self.commits[n] for n in compatible)
-        script = ('susfs_ok() { [[ " $OK " == *" $(git rev-parse HEAD) "* ]]; }\n'
-                  'SUSFS_AUTO=true; SUSFS_NOTE=""\n'
-                  f'STABLE_SUSFS_COMMIT={stable if len(stable) == 40 else self.commits[stable]}\n'
-                  + selection_script() +
-                  '\nprintf "__PICK__=%s|%s" "$(git rev-parse HEAD)" "$SUSFS_NOTE"\n')
-        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True)
-        r = subprocess.run(['bash', '-eo', 'pipefail', '-c', script], cwd=self.repo,
-                           env={**self.env, 'OK': ok}, text=True, capture_output=True)
-        if r.returncode:
-            return None, r.stdout + r.stderr
-        sha, note = r.stdout.rsplit('__PICK__=', 1)[1].split('|', 1)
-        return names[sha], note
-
-    def test_uses_head_when_compatible(self):
-        self.assertEqual(self.pick({'stable', 'head'}), ('head', ''))
-
-    def test_walks_back_to_newest_compatible(self):
-        name, note = self.pick({'stable', 'new1'})
-        self.assertEqual(name, 'new1')
-        self.assertIn('已自动使用', note)
-
-    def test_falls_back_to_stable(self):
-        name, note = self.pick({'old', 'stable'})
-        self.assertEqual(name, 'stable')
-        self.assertIn(self.commits['head'][:8], note)
-
-    def test_never_goes_older_than_stable(self):
-        name, out = self.pick({'old'})
-        self.assertIsNone(name)
-        self.assertIn('没有找到与当前 KernelSU 接口兼容的 SUSFS 提交', out)
-
-    def test_missing_stable_only_checks_head(self):
-        name, out = self.pick({'old', 'stable'}, stable='0' * 40)
-        self.assertIsNone(name)
-        self.assertIn('已不在分支历史中', out)
-        self.assertEqual(self.pick({'head'}, stable='0' * 40), ('head', ''))
 
 
 if __name__ == '__main__':

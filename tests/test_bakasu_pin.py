@@ -11,9 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
-PIN = 'd5e9e025b8b49155f8014684d64c91742b465f65'
-OLD = '239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb'
-SUKI = '05f5cdf082d32bbc651c205ba4bdd1dc66cca7f5'
+PIN = '5785bdb8091304322f597f67d50e0b79f9815cb2'
 
 
 def step_script(name):
@@ -31,52 +29,6 @@ def bash(script, env=None, cwd=None):
 
 
 class BakaSUPinTests(unittest.TestCase):
-    def selection(self, user='', manual='', is_baka='true'):
-        source = WF.read_text()
-        a = source.index('          EXPECT_COMMIT=""')
-        b = source.index('          echo "KernelSU:', a)
-        script = textwrap.dedent(source[a:b])
-        variables = dict(USER_BRANCH=user, MANUAL_HASH=manual,
-                         IS_RESUKISU=is_baka, RESUKISU_TAG='v4.2.0-rc3',
-                         RESUKISU_COMMIT=PIN, SUKISU_BUILTIN_COMMIT=SUKI)
-        result = bash(script + '\nprintf "%s|%s" "$KSU_REF" "$EXPECT_COMMIT"', variables)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return result.stdout
-
-    def test_default_uses_commit_not_release_tag(self):
-        self.assertEqual(self.selection(), PIN + '|' + PIN)
-
-    def test_custom_branch_remains_supported(self):
-        self.assertEqual(self.selection(user='main'), 'origin/main|')
-
-    def test_explicit_rollback_overrides_default(self):
-        self.assertEqual(self.selection(manual=OLD), OLD + '|')
-
-    def test_hash_has_priority_over_branch(self):
-        self.assertEqual(self.selection(user='main', manual=OLD), OLD + '|')
-
-    def test_sukisu_pin_is_unchanged(self):
-        self.assertEqual(self.selection(is_baka='false'), SUKI + '|' + SUKI)
-
-    def release_flag(self, actual):
-        source = WF.read_text()
-        a = source.index('          if [[ "$IS_RESUKISU" == true && "$ACTUAL_COMMIT" == "$RESUKISU_RELEASE_COMMIT" ]]')
-        b = source.index('\n          fi', a) + len('\n          fi')
-        with tempfile.TemporaryDirectory() as tmp:
-            dest = Path(tmp) / 'env'; dest.touch()
-            result = bash(textwrap.dedent(source[a:b]), dict(
-                IS_RESUKISU='true', ACTUAL_COMMIT=actual,
-                RESUKISU_RELEASE_COMMIT=OLD, RESUKISU_TAG='v4.2.0-rc3',
-                GITHUB_ENV=str(dest)))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            return dest.read_text()
-
-    def test_default_never_selects_old_release_apk(self):
-        self.assertEqual(self.release_flag(PIN), '')
-
-    def test_old_source_can_use_matching_release_apk(self):
-        self.assertEqual(self.release_flag(OLD), 'RESUKISU_RELEASE=v4.2.0-rc3\n')
-
     def run_manager(self, version, artifact='yes'):
         # Mock network and APK decoding only; execute actual workflow shell logic.
         mocks = r'''
@@ -100,7 +52,7 @@ class BakaSUPinTests(unittest.TestCase):
             script = script.replace('${{ steps.manager.outputs.manager_artifact }}', 'Manager-release')
             script = script.replace('${{ steps.manager.outputs.manager_repo }}', 'Baka-SU/BakaSU')
             result = bash(textwrap.dedent(mocks) + script, dict(
-                IS_RESUKISU='true', KSU_SHA=PIN, KSUVER='35222',
+                IS_BAKASU='true', KSU_SHA=PIN, KSUVER='35222',
                 GITHUB_WORKSPACE=tmp, GITHUB_TOKEN='mock-not-a-real-token',
                 MOCK_VERSION=version, MOCK_ARTIFACT=artifact), cwd=tmp)
             self.assertEqual(result.returncode, 0, result.stderr)
