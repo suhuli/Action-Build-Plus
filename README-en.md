@@ -4,7 +4,7 @@
 
 Build a Linux **5.10.110** kernel for the **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`, MT6895, Android 13), packaged with AnyKernel3.
 
-## Exactly three build profiles
+## Three default profiles, with advanced options
 
 | `PROFILE` | Components |
 |---|---|
@@ -12,7 +12,20 @@ Build a Linux **5.10.110** kernel for the **OnePlus Ace Racing Edition** (`onepl
 | `SUKISU` | SukiSU-Ultra builtin + SUSFS, no KPM |
 | `SUKISU_KPM` | SukiSU-Ultra builtin + SUSFS + KPM |
 
-Legacy rollback selectors, arbitrary KernelSU/SUSFS refs, disabling SUSFS, SUSFS dev, KPN and spoofed-manager options have been removed. This removes build configuration and old KPN binaries, not Git history, existing releases/artifacts or the kernel already installed on a phone.
+Legacy rollback, custom KernelSU/SUSFS refs, disabling SUSFS, dev branches, KPN and spoofed managers are restored as explicit advanced options. **With advanced inputs unchanged, the three latest pinned defaults remain identical; BakaSU without KPM is still the default.** Git history, existing releases/artifacts and the phone are not changed.
+
+### Advanced inputs
+
+- `MANAGER_SOURCE=AUTO`: follow PROFILE, or override with `RESUKISU`, `RESUKISU_SPOOF`, `SUKISU`, `SUKISU_SPOOF`.
+- `KPM=AUTO`: follow PROFILE, or explicitly choose `N/A`, `KPM`, `KPN`. BakaSU rejects KPM/KPN.
+- `KSU_META=//`: `branch/custom-label/commit`, split twice from the right so slash-named branches work. An explicit commit overrides a branch; no explicit ref means the latest reviewed pin.
+- `SUSFS_META=`: explicit commit/ref or rollback count; `-1` disables SUSFS for BakaSU only. SukiSU builtin requires SUSFS for root.
+- `SUSFS_BRANCH=`: optional branch override; otherwise `gki-android12-5.10`.
+- `SUSFS_DEV=false`: explicitly append `-dev` to the chosen branch.
+
+Defaults use pinned SUSFS `8930474a`, with no implicit rollback. Only an explicit custom KernelSU without an explicit SUSFS selection enables compatibility search: from stable-branch HEAD back to floor `31eb14ad` (up to 50 newer commits plus the floor). Dev/custom SUSFS branches use their selected HEAD. Every interface or patch failure still stops the build.
+
+Examples: `MANAGER_SOURCE=RESUKISU_SPOOF`; `PROFILE=SUKISU,KPM=KPN`; `KSU_META=feature/test//`; `KSU_META=//<commit>`. Legacy BakaSU release source: `KSU_META=//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`; legacy SUSFS: `SUSFS_META=31eb14add587b0a089dfe1819f92cc94920e141e`. These are advanced selectors, not a compatibility guarantee. Restored KPN binaries have recorded checksums but are **not validated with the new SukiSU on a device**.
 
 ## Reviewed versions — 2026-10-31
 
@@ -44,11 +57,11 @@ Retained options: `BUILD_TIME` (stock timestamp; `F` for current UTC), `SUFFIX` 
 
 ## Compatibility and managers
 
-- All profiles require the exact pinned SUSFS. No implicit older fallback and no warn-and-continue on missing interfaces or failed patches.
-- BakaSU's upstream SUSFS build restriction is preserved. Attach only successful **same-commit** CI manager artifacts with matching APK versionCode. Missing artifacts produce a warning and no bundled manager; never substitute an older release APK.
-- SukiSU uses the pinned builtin kernel and pinned main manager. Verify UAPI before compiling, and pair the kernel version with APK versionCode. Missing or incompatible managers stop the build rather than falling back to legacy releases.
+- All ordinary presets use the exact pinned SUSFS. Advanced modes may explicitly disable it for BakaSU or select custom/older sources; missing interfaces and failed patches still stop.
+- BakaSU's upstream SUSFS build restriction is preserved. Attach only successful **same-commit** CI manager artifacts with matching APK versionCode. Missing artifacts produce a warning and no bundled manager; only use a legacy release APK when explicit rollback source matches its recorded commit. Spoofed-manager fallback must remain the same source version.
+- SukiSU uses the pinned builtin kernel and pinned main manager. Verify UAPI before compiling, and pair the kernel version with APK versionCode. Ordinary presets fail if this exact manager is missing or incompatible. Advanced custom/spoof mode restores UAPI-matched release/main-CI selection and APK versionCode pairing; unavailable managers are omitted, not replaced with an incompatible UAPI.
 - Keep the existing bool-to-static-key adapter in `ksu_susfs_compat.py`; unexpected source structure fails closed.
-- Only `SUKISU_KPM` enables `CONFIG_KPM`, downloads the pinned tool, verifies its SHA-256 and patches Image. Require successful execution and a nonempty, changed oImage. Neither no-KPM profile runs this tool.
+- Only `SUKISU_KPM` enables `CONFIG_KPM`, downloads the pinned tool, verifies its SHA-256 and patches Image. Require successful execution and a nonempty, changed oImage. Neither ordinary no-KPM profile runs this tool. Advanced KPN uses its separate checksummed legacy tools with CONFIG_KPM disabled.
 - Static symbol checks do not prove types, ABI, Kbuild reachability or runtime correctness. A checksum verifies integrity, not binary safety or functionality.
 - Do not claim complete end-to-end BakaSU SUSFS priority UID filter support without separate manager, scheduler and runtime validation.
 

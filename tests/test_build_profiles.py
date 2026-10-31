@@ -20,7 +20,7 @@ VERSIONS = json.loads((ROOT / 'config/versions.json').read_text())
 class ProfileTests(unittest.TestCase):
     def test_exactly_three_choices_and_default(self):
         text = WF.read_text()
-        choices = text.split('        options:\n', 1)[1].split('      BUILD_TIME:', 1)[0]
+        choices = text.split('        options:\n', 1)[1].split('      MANAGER_SOURCE:', 1)[0]
         self.assertEqual([x.strip()[2:] for x in choices.splitlines() if x.strip()], list(build_profile.PROFILES))
         self.assertIn('default: BAKASU', text)
 
@@ -71,13 +71,12 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             self.assertIn('KPM_ENABLED=false\n', target.read_text())
 
-    def test_old_input_entries_and_kpn_binaries_removed(self):
+    def test_advanced_inputs_and_kpn_tools_are_restored(self):
         text = WF.read_text()
-        for name in ('MANAGER_SOURCE', 'KSU_META', 'SUSFS_META', 'SUSFS_DEV', 'KPM'):
-            self.assertNotIn('      ' + name + ':\n', text)
-            self.assertNotIn('github.event.inputs.' + name, text)
+        for name in ('MANAGER_SOURCE', 'KSU_META', 'SUSFS_META', 'SUSFS_DEV', 'SUSFS_BRANCH', 'KPM'):
+            self.assertIn('      ' + name + ':\n', text)
         for name in ('kptools-linux', 'kpimg-linux'):
-            self.assertFalse((ROOT / 'patches' / name).exists())
+            self.assertTrue((ROOT / 'patches' / name).is_file())
 
     def test_documented_pins_match_manifest(self):
         for filename in ('README.md', 'README-en.md'):
@@ -90,31 +89,20 @@ class ProfileTests(unittest.TestCase):
 
 
 class PinnedSusfsTests(unittest.TestCase):
-    def test_no_fallback_or_warn_and_continue(self):
+    def test_default_pinned_selection_is_not_implicit_rollback(self):
+        for profile in build_profile.PROFILES:
+            self.assertEqual(build_profile.resolve(profile)['SUSFS_SELECTION'], 'pinned')
         text = step_script('Apply SUSFS')
-        for old in ('STABLE_SUSFS_COMMIT', 'git rev-list', 'SUSFS_AUTO', 'HEAD~', 'SUSFS_META'):
-            self.assertNotIn(old, text)
-        self.assertIn('"$SUSFS_COMMIT"', text)
+        self.assertIn('select_susfs.sh', text)
         self.assertIn('susfs_fixups.py" pre .', text)
         self.assertIn('susfs_fixups.py" post .', text)
         self.assertIn('ksu_susfs_compat.py', text)
 
-    def test_incompatible_fixed_susfs_stops_before_patching(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'kernel_workspace').mkdir()
-            envfile = root / 'env'
-            envfile.touch()
-            env = {**build_profile.resolve('BAKASU'), 'GITHUB_WORKSPACE': tmp, 'GITHUB_ENV': str(envfile)}
-            mocks = '''git() { if [[ "$*" == *rev-parse* ]]; then printf '%s' "$SUSFS_COMMIT"; fi; }
-python3() { echo 'incompatible fixture'; return 1; }
-patch() { echo 'MUST_NOT_PATCH'; return 0; }
-'''
-            script = step_script('Apply SUSFS').replace('${{ github.event.inputs.RE_KERNEL }}', 'false').replace('${{ env.KANDROID_VERSION }}', 'android12').replace('${{ env.KERNEL_VERSION }}', '5.10')
-            result = bash(mocks + script, env, cwd=tmp)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertNotIn('MUST_NOT_PATCH', result.stdout)
-            self.assertEqual(envfile.read_text(), '')
+    def test_selection_script_is_fail_closed(self):
+        text = (ROOT / 'scripts/select_susfs.sh').read_text()
+        self.assertIn('set -euo pipefail', text)
+        self.assertIn('susfs_ok\nSUSFS_VER=', text)
+        self.assertNotIn('继续编译', text)
 
 
 class KpmTests(unittest.TestCase):

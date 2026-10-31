@@ -4,7 +4,7 @@
 
 为 **一加 Ace 竞速版**（`oneplus_ace_race_t` / MT6895 / Android 13）编译 Linux **5.10.110** 内核，生成 AnyKernel3 刷机包。
 
-## 仅保留三个组合
+## 三个常用预设，保留高级入口
 
 | `PROFILE` | 组合 | 用途 |
 |---|---|---|
@@ -12,7 +12,29 @@
 | `SUKISU` | SukiSU-Ultra builtin + SUSFS，无 KPM | SukiSU 方案 |
 | `SUKISU_KPM` | SukiSU-Ultra builtin + SUSFS + KPM | 需要 KPM 模块的测试方案 |
 
-不再提供旧版回退、自定义 KernelSU/SUSFS 分支或提交、关闭 SUSFS、SUSFS 开发分支、KPN、伪装版管理器等额外入口。删除的是构建配置与旧 KPN 工具，不删除历史 Git 提交、Release、Artifacts，也不会改变手机里现有的内核。
+已恢复旧版回退、自定义 KernelSU/SUSFS 分支或提交、关闭 SUSFS、SUSFS 开发分支、KPN 和伪装版管理器。**这些都是显式高级选项；不改参数时，仍使用上述最新版固定预设，默认 BakaSU 无 KPM。** 不删除历史 Git 提交、Release 或 Artifacts，也不会改变手机现有内核。
+
+### 高级选项与优先级
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `MANAGER_SOURCE` | `AUTO` | 跟随 PROFILE；可覆盖为 `RESUKISU` / `RESUKISU_SPOOF`（BakaSU），或 `SUKISU` / `SUKISU_SPOOF`。`_SPOOF` 选择伪装版管理器 |
+| `KPM` | `AUTO` | 跟随 PROFILE；可覆盖为 `N/A`、`KPM`、`KPN`。BakaSU 不支持 KPM/KPN，显式冲突会报错 |
+| `KSU_META` | `//` | `分支/自定义标识/提交哈希`；从右拆分两次，支持带 `/` 的分支名。提交哈希优先于分支，均空才使用最新版固定提交 |
+| `SUSFS_META` | 空 | 默认预设使用固定 SUSFS；显式填提交、引用或回退次数。`-1` 仅可为 BakaSU 关闭 SUSFS；SukiSU builtin 禁止关闭，否则无法正常 root |
+| `SUSFS_BRANCH` | 空 | 自定义 SUSFS 分支；默认 `gki-android12-5.10` |
+| `SUSFS_DEV` | 关 | 显式使用所选 SUSFS 分支的 `-dev` 版本；实验选项 |
+
+选择顺序：PROFILE → MANAGER_SOURCE/KPM 覆盖 → KSU_META 分支或哈希 → SUSFS 显式选源。普通预设的 SUSFS 固定为 `8930474a`，不会自动回退。**只有显式自定义 KernelSU 且未指定 SUSFS 时**，才从稳定分支 HEAD 向后寻找兼容 SUSFS，保底 `31eb14ad`；最多检查 50 个较新提交及保底。DEV/自定义 SUSFS 分支默认直接取该分支 HEAD。所有模式的接口检查或补丁失败均停止，不用警告掩盖失败。
+
+示例（高级组合均需独立编译及实机验证）：
+
+- 保留你日常最新版：`PROFILE=BAKASU`，高级参数维持默认。
+- 最新 BakaSU 伪装管理器：`MANAGER_SOURCE=RESUKISU_SPOOF`。
+- SukiSU + KPN：`PROFILE=SUKISU`，`KPM=KPN`。旧 KPN 二进制已恢复并校验哈希，**未验证与新版 SukiSU 的实机兼容，不当作稳定方案**。
+- 自定义分支：`KSU_META=builtin//` 或 `KSU_META=feature/test//`；指定提交：`KSU_META=//<提交哈希>`。
+- 旧 BakaSU release 源码：`KSU_META=//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`；旧 SUSFS 可显式用 `SUSFS_META=31eb14add587b0a089dfe1819f92cc94920e141e`，不代表保证兼容。
+- 仅 BakaSU 不带 SUSFS：`SUSFS_META=-1`。
 
 ## 本轮固定版本（2026-10-31 核对）
 
@@ -56,11 +78,11 @@
 
 ## 兼容性与管理器
 
-- 三种组合均强制启用固定 SUSFS。不再自动回到较旧兼容提交，也不再“检查失败但继续编译”。接口检查或补丁失败即停止。
-- BakaSU 不绕过上游 SUSFS 编译限制。只附带与内核**同一提交**的成功 CI 管理器，并核对 APK versionCode；缺失时警告且不附带，不拿旧 release APK 代替。
-- SukiSU 内核来自 builtin，管理器来自清单中固定的 main 提交。构建前核对 UAPI，绑定 APK versionCode；找不到该提交管理器或无法配对时停止，不降级到旧 release 管理器。
+- 三个普通预设均启用固定 SUSFS；高级模式允许 BakaSU 关闭，或显式自定义/回退。接口检查和补丁失败即停止。
+- BakaSU 不绕过上游 SUSFS 编译限制。只附带与内核**同一提交**的成功 CI 管理器，并核对 APK versionCode；缺失时警告且不附带。只有显式回退的源码与记录的 release 提交一致，才允许使用对应 release APK；伪装版缺失时可回退同源码普通版，不跨版本混装。
+- SukiSU 内核来自 builtin，管理器来自清单中固定的 main 提交。构建前核对 UAPI，绑定 APK versionCode；普通预设找不到该提交管理器或无法配对时停止。高级自定义/伪装模式恢复按 UAPI 选择 release / main CI 的逻辑，并绑定 APK versionCode；找不到时不附带管理器，不混用不匹配 UAPI。
 - 保留 `ksu_susfs_compat.py` 的 bool → static-key 适配；脚本只在预期源码结构下修改，结构不符停止。
-- `SUKISU_KPM` 才启用 `CONFIG_KPM`、下载固定工具并检查 SHA-256、处理 Image。补丁程序必须成功生成非空且改变后的 oImage；其他两个组合不执行该工具。
+- `SUKISU_KPM` 才启用 `CONFIG_KPM`、下载固定工具并检查 SHA-256、处理 Image。补丁程序必须成功生成非空且改变后的 oImage；其他两个普通预设不执行该工具。高级 KPN 使用单独的旧工具路径，不开启 CONFIG_KPM。
 - 静态检查不是完整预处理器，不验证所有类型、Kbuild 可达性、ABI 或实机行为。SHA-256 只核对下载完整性，不证明二进制功能正确或安全。
 - 不把 BakaSU 的 SUSFS priority UID filter 声称为已完成端到端支持；管理器、调度集成和实际功能另行验证。
 
