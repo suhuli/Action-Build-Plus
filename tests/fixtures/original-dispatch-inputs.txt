@@ -1,0 +1,90 @@
+  workflow_dispatch:
+    inputs:
+      MANAGER_SOURCE:
+        type: choice
+        description: "KernelSU 分支(SPOOF=伪装版管理器)"
+        required: true
+        default: RESUKISU
+        options:
+          - RESUKISU
+          - RESUKISU_SPOOF
+          - SUKISU
+          - SUKISU_SPOOF
+      KPM:
+        type: choice
+        description: "内核模块实现方式(仅SukiSU-Ultra支持)"
+        required: true
+        default: N/A
+        options:
+          - KPM
+          - KPN
+          - N/A
+      SUSFS_META:
+        type: string
+        description: "回退SUSFS(输入哈希或次数或-1关闭，SukiSU-Ultra不能关闭)"
+        required: false
+        default: ""
+      BUILD_TIME:
+        type: string
+        description: "自定义构建时间(默认与原厂内核一致；输入F使用当前UTC时间)"
+        required: false
+        default: "Mon Oct 24 22:45:30 UTC 2022"
+      KSU_META:
+        type: string
+        description: "分支名(留空用默认)/自定义版本标识(留空不修改)/回退提交哈希(留空不修改)"
+        required: false
+        default: "//"
+      SUFFIX:
+        type: string
+        description: "自定义内核后缀(默认与原厂内核一致；清空则使用随机字符串)"
+        required: false
+        default: "9-00011-g8efa13274425-ab9212784"
+      SUBLEVEL:
+        description: "自定义内核等级欺骗(SUBLEVEL)"
+        required: false
+        default: ""
+      LSM_BBG:
+        type: boolean
+        description: "是否启用关键分区写入保护模块(BBG)？"
+        required: true
+        default: true
+      CCM:
+        type: boolean
+        description: "是否编入 BBR / BBRv3 拥塞控制算法？（不改默认算法）"
+        required: true
+        default: true
+      UNICODE_BYPASS:
+        type: boolean
+        description: "是否添加Unicode不可见字码点绕过读取漏洞修复？"
+        required: true
+        default: true
+      DROID_SPACES:
+        type: boolean
+        description: "是否添加轻量级Linux容器支持(DroidSpaces)？"
+        required: true
+        default: false
+      RE_KERNEL:
+        type: boolean
+        description: "是否添加Re-Kernel？"
+        required: true
+        default: false
+      SUSFS_DEV:
+        type: boolean
+        description: "是否拉取SUSFS-DEV分支？"
+        required: true
+        default: false
+      SPACE_NOCLEAN:
+        type: boolean
+        description: "是否停用空间清扫？"
+        required: true
+        default: false
+      RELEASE:
+        type: boolean
+        description: "是否发布到 Release？(默认不发布，需要时手动勾选)"
+        required: true
+        default: false
+      BUILD_NOCCACHE:
+        type: boolean
+        description: "是否停用此次Ccache？"
+        required: true
+        default: false

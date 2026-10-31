@@ -49,9 +49,9 @@ def sync_issue(repo, updates):
             gh('issue', 'close', str(issue['number']), '--repo', repo,
                '--comment', '所有上游查询成功；固定提交已与当前上游一致。')
         return
-    body = ('上游有新提交。默认预设为 `BAKASU`、`SUKISU`、`SUKISU_KPM`；另保留显式高级选项。\n\n'
+    body = ('上游有新提交。使用原 MANAGER_SOURCE / KPM / KSU_META / SUSFS_META 参数界面。\n\n'
             + '\n'.join(updates) + '\n\n'
-            '版本统一记录在 `config/versions.json`，不会自动升级或回退。'
+            '请同步更新构建工作流固定值与 `config/versions.json` 版本清单（测试校验一致）；不会自动升级。'
             '升级前重新核对 SUSFS 接口、SukiSU static-key 适配、管理器 UAPI/versionCode，以及 KPM 工具 SHA-256；'
             '完整编译及实机验收后再用于日常。新提交不等于兼容或稳定。\n')
     print(body)

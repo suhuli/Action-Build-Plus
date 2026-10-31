@@ -29,7 +29,8 @@ class SukiManagerTests(unittest.TestCase):
             unzip() { printf 'fixture APK' > "${@: -1}/manager-arm64-v8a-release.apk"; }
             python3() { printf '%s\n' "$MOCK_VERSION"; }
             '''
-            result = bash(mocks + step_script('Pair SukiSU-Ultra Manager'), dict(
+            script = step_script('Pair pinned SukiSU Manager').replace('${{ steps.manager.outputs.manager_repo }}', 'SukiSU-Ultra/SukiSU-Ultra')
+            result = bash(mocks + script, dict(
                 GITHUB_WORKSPACE=tmp, RUNNER_TEMP=tmp, GITHUB_TOKEN='fixture',
                 GITHUB_ENV=str(dest), MANAGER_REPO='SukiSU-Ultra/SukiSU-Ultra',
                 MANAGER_SHA='a' * 40, KSU_UAPI='6', MOCK_UAPI=uapi, MOCK_RUN=run,
@@ -60,7 +61,7 @@ class SukiManagerTests(unittest.TestCase):
         self.assertEqual(env, '')
 
     def test_no_release_or_floating_main_fallback(self):
-        source = step_script('Pair SukiSU-Ultra Manager')
+        source = step_script('Pair pinned SukiSU Manager')
         self.assertNotIn('/releases', source)
         self.assertNotIn('branch=main', source)
         self.assertIn('head_sha=${MANAGER_SHA}', source)
