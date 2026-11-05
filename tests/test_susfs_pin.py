@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
 PIN = '31eb14add587b0a089dfe1819f92cc94920e141e'
 OLD = 'ca7093a1a26f7911987110c34a1352d74cfb1d09'
-BAKA = '5785bdb8091304322f597f67d50e0b79f9815cb2'
-SUKI = 'b16e899a555e9b96aa1225f049cd7274820ca5b8'
+BAKA = '516d3e87fbc986ccefdde2c2765f1700612441a9'
+SUKI = '1cfa57340590971cba7521ed536da8ebbedc5f0a'
 
 
 class SusfsPinTests(unittest.TestCase):

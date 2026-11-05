@@ -1,24 +1,24 @@
 {
-  "reviewed_at": "2026-10-31",
+  "reviewed_at": "2026-11-06",
   "bakasu": {
     "repo": "Baka-SU/BakaSU",
     "branch": "main",
-    "commit": "5785bdb8091304322f597f67d50e0b79f9815cb2"
+    "commit": "516d3e87fbc986ccefdde2c2765f1700612441a9"
   },
   "sukisu": {
     "repo": "SukiSU-Ultra/SukiSU-Ultra",
     "branch": "builtin",
-    "commit": "b16e899a555e9b96aa1225f049cd7274820ca5b8"
+    "commit": "1cfa57340590971cba7521ed536da8ebbedc5f0a"
   },
   "sukisu_manager": {
     "repo": "SukiSU-Ultra/SukiSU-Ultra",
     "branch": "main",
-    "commit": "a5742cdae02147973f9cc29db8888de62c1bae9d"
+    "commit": "645ef9860b9b7f900bb5d1b27e224f2c311d39c0"
   },
   "susfs": {
     "repo": "https://gitlab.com/simonpunk/susfs4ksu.git",
     "branch": "gki-android12-5.10",
-    "commit": "8930474a298d07ab9f1beca926779cbc3656b79e"
+    "commit": "b0e474642cf77ee797004a454fa441362723d0ba"
   },
   "kpm": {
     "repo": "SukiSU-Ultra/SukiSU_patch",

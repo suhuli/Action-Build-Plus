@@ -122,7 +122,7 @@ jobs:
       # 固定版本，maintenance.yml 每天检查上游是否有新提交
       AK3_COMMIT: 47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7  # Numbersf/AnyKernel3 v31.0 beta (requested update)
       BBG_COMMIT: 028ff7fd509e2104596da7cc1ef8e6ce2a0c9082  # vc-teahouse/Baseband-guard
-      MANAGER_SHA: a5742cdae02147973f9cc29db8888de62c1bae9d
+      MANAGER_SHA: 645ef9860b9b7f900bb5d1b27e224f2c311d39c0
       KPM_PATCH_SHA256: 5b4984fbe7771925542d27b159278184cf3ce5064dafb751f8a2fb073b922b3f
       SUKISU_PATCH_COMMIT: eec45788c9a115e5498040298133336d6b6071dd  # SukiSU-Ultra/SukiSU_patch（KPM 工具 patch_linux）
     steps:
@@ -475,9 +475,9 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="5785bdb8091304322f597f67d50e0b79f9815cb2"  # Official BakaSU main reviewed 2026-10-31; latest successfully built source
+          RESUKISU_COMMIT="516d3e87fbc986ccefdde2c2765f1700612441a9"  # Official BakaSU main reviewed 2026-11-06; build verification required
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
-          SUKISU_BUILTIN_COMMIT="b16e899a555e9b96aa1225f049cd7274820ca5b8"  # SukiSU-Ultra builtin, UAPI 6; reviewed latest, built with SUSFS 8930474a
+          SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 
           # 必须包含两个分隔符（至少三个字段）
           if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 2 ]]; then
@@ -521,6 +521,9 @@ jobs:
           git clone -q "https://github.com/${MANAGER_REPO}.git" KernelSU
           git -C KernelSU -c advice.detachedHead=false checkout -q "$KSU_REF"
           ACTUAL_COMMIT=$(git -C KernelSU rev-parse HEAD)
+          if [[ "$IS_RESUKISU" == true && "${{ steps.manager.outputs.manager_artifact }}" == "Spoofed-Manager-release" ]]; then
+            python3 "$GITHUB_WORKSPACE/scripts/manager_variant_check.py" KernelSU/.github/workflows/build-manager.yml
+          fi
           if [[ -n "$EXPECT_COMMIT" && "$ACTUAL_COMMIT" != "$EXPECT_COMMIT" ]]; then
             echo "::error title=KernelSU::$KSU_REF 指向 $ACTUAL_COMMIT，与固定的 $EXPECT_COMMIT 不一致"
             exit 1
@@ -806,7 +809,7 @@ jobs:
             # Keep the old SukiSU builtin/explicit legacy BakaSU rollback compatible.
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
             # Both default latest kernels use the modern SUSFS floor; explicit rollback retains the legacy floor.
-            BAKASU_SUSFS_COMMIT="8930474a298d07ab9f1beca926779cbc3656b79e"
+            BAKASU_SUSFS_COMMIT="b0e474642cf77ee797004a454fa441362723d0ba"
             if [[ "${KSU_PINNED:-false}" == true ]]; then
               STABLE_SUSFS_COMMIT="$BAKASU_SUSFS_COMMIT"
             fi
@@ -819,7 +822,10 @@ jobs:
             cd susfs4ksu
             KSU_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel"
             COMMON_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
-            susfs_ok() { python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"; }
+            susfs_ok() {
+              python3 "$GITHUB_WORKSPACE/scripts/susfs_feature_compat.py" --check kernel_patches "$KSU_SRC" &&
+              python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"
+            }
             SUSFS_NOTE=""
             # --- 选择 SUSFS 提交 ---
             if [[ "$SUSFS_AUTO" == true ]]; then
@@ -858,6 +864,9 @@ jobs:
               echo "::error title=SUSFS::手动指定的 SUSFS 与当前 KernelSU 接口不兼容（见上方缺失符号）"
               exit 1
             fi
+            # Apply only after selection; candidate checks never mutate KernelSU.
+            python3 "$GITHUB_WORKSPACE/scripts/susfs_feature_compat.py" --apply kernel_patches "$KSU_SRC"
+            python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"
             SUSFS_VER=$(grep -o 'SUSFS_VERSION "[^"]*"' kernel_patches/include/linux/susfs.h | cut -d'"' -f2)
             echo "SUSFS: $(git log -1 --format='%h %s') ($SUSFS_VER)"
             echo "SUSFS_VER=$SUSFS_VER" >> "$GITHUB_ENV"
@@ -1006,6 +1015,9 @@ jobs:
             echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> "$CONFIG_FILE"
             echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> "$CONFIG_FILE"
             echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> "$CONFIG_FILE"
+            if grep -qx 'config KSU_SUSFS_PRIORITY_UID_FILTER' "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel/Kconfig"; then
+              echo "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y" >> "$CONFIG_FILE"
+            fi
           else
             echo "CONFIG_KSU_SUSFS=n" >> "$CONFIG_FILE"
           fi
@@ -1189,6 +1201,11 @@ jobs:
           scripts/config --file out/.config -e SECCOMP
           scripts/config --file out/.config -e SECCOMP_FILTER
           make O=out "${MAKE_ARGS[@]}" olddefconfig
+          if grep -qx 'config KSU_SUSFS_PRIORITY_UID_FILTER' "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel/Kconfig" && [[ "$INPUT_SUSFS_META" != "-1" ]]; then
+            grep -qx 'CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y' out/.config || {
+              echo "::error::SUSFS priority UID feature was requested but is not enabled in the effective config"; exit 1;
+            }
+          fi
           grep '^CONFIG_SECCOMP=' out/.config || true
           grep '^CONFIG_SECCOMP_FILTER=' out/.config || true
           set -o pipefail
@@ -1383,15 +1400,6 @@ jobs:
             fi
 
             # 3) 同一提交的 CI 产物已过期（保留 90 天）或不存在
-            if [[ -n "${RESUKISU_RELEASE:-}" && "$MANAGER_ARTIFACT" != "Manager-release" ]]; then
-              APK=$(gh api "repos/${MANAGER_REPO}/releases/tags/${RESUKISU_RELEASE}" \
-                --jq '.assets[] | select(.name | endswith("-arm64-v8a-release.apk")) | .browser_download_url' | head -n1)
-              if [[ -n "$APK" ]]; then
-                echo "::warning title=Manager::${RESUKISU_RELEASE} 的伪装版管理器已过期，改为附带同版本的普通管理器"
-                curl -fL --retry 3 -o "./AnyKernel3/$(basename "$APK")" "$APK"
-                exit 0
-              fi
-            fi
             echo "::warning title=Manager::没有找到与内核 ${KSU_SHA::8} 对应的管理器，本次不附带管理器（不会改用其他版本，避免内核和管理器不匹配）"
             exit 0
           fi

@@ -8,8 +8,8 @@ from test_susfs_auto import make_susfs, write, run_check
 from test_bakasu_pin import WF, bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BAKA = '5785bdb8091304322f597f67d50e0b79f9815cb2'
-SUSFS = '8930474a298d07ab9f1beca926779cbc3656b79e'
+BAKA = '516d3e87fbc986ccefdde2c2765f1700612441a9'
+SUSFS = 'b0e474642cf77ee797004a454fa441362723d0ba'
 LEGACY = '31eb14add587b0a089dfe1819f92cc94920e141e'
 CONTRACT = '''ifeq ($(shell grep -q "ksu_selinux_hide_running" $(srctree)/security/selinux/hooks.c; echo $$?),0)
 $(info -- BakaSU/susfs_feature_check: selinux_hide manual hook found)
@@ -61,7 +61,7 @@ class BakaSUAliasTests(unittest.TestCase):
 
 class UpdatedPinTests(unittest.TestCase):
     def source_floor(self, baka=True, sha=None):
-        expected = BAKA if baka else 'b16e899a555e9b96aa1225f049cd7274820ca5b8'
+        expected = BAKA if baka else '1cfa57340590971cba7521ed536da8ebbedc5f0a'
         sha = sha or expected
         source = WF.read_text()
         a = source.index('            STABLE_SUSFS_COMMIT=')

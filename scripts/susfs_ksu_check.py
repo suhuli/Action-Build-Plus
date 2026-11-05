@@ -144,6 +144,32 @@ def load_sources(root: Path, exts=(".c", ".h")) -> list:
     return files
 
 
+def reverse_missing(susfs: Path, ksu: Path) -> list:
+    """KSU -> SUSFS real definitions, including newly required sepolicy helpers.
+
+    This is a conservative source-level check, not preprocessing/type checking.
+    Header inline definitions may satisfy calls; static .c definitions may not.
+    The separate feature contract checks the reviewed conditional priority API.
+    """
+    own = load_sources(ksu)
+    available = []
+    for sub in ("fs", "include"):
+        if (susfs / sub).is_dir(): available += load_sources(susfs / sub)
+    wanted = {}
+    for path, text in own:
+        if path.suffix == ".c":
+            for sym in re.findall(r"\b(susfs_\w+)\s*\(", text):
+                wanted.setdefault(sym, set()).add(path)
+    missing = []
+    for sym in sorted(wanted):
+        local_defs = find_definitions(sym, own)
+        if all(any(not static or path.suffix == ".h" or path == caller
+                   for path, static in local_defs) for caller in wanted[sym]): continue
+        defs = find_definitions(sym, available)
+        if not any(not static or path.suffix == ".h" for path, static in defs): missing.append(sym)
+    return missing
+
+
 def main() -> int:
     if len(sys.argv) not in (3, 4):
         print(__doc__)
@@ -192,7 +218,10 @@ def main() -> int:
 
     print(f"SUSFS 补丁需要的外部符号: {len(wanted)} 个；KernelSU 提供 {len(from_ksu)} 个"
           + (f"，内核提供 {len(from_kernel)} 个" if from_kernel else ""))
-    if not static_only and not missing:
+    reverse = reverse_missing(susfs, ksu)
+    for sym in reverse:
+        print(f"  ✗ {sym}: KernelSU 调用的 SUSFS 函数在所选 SUSFS 中没有可链接定义")
+    if not static_only and not missing and not reverse:
         print("SUSFS ↔ KernelSU 接口检查通过")
         return 0
     for sym, path in static_only:
