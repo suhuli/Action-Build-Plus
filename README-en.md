@@ -1,5 +1,7 @@
 [简体中文](README.md) | **English**
 
+> **2026-11-06 BakaSU SELinux bridge (candidate)**: default BakaSU builds pin the latest reviewed SUSFS SHA, with no silent fallback. Three SELinux hooks use BakaSU's policy-snapshot backend; unreviewed combinations fail closed, including unsupported custom legacy/dev sources. Dependencies are not downgraded. Full CI and device acceptance are still required. See [repair notes](docs/2026-11-bakasu-selinux-bridge.md).
+
 # Action-Build-Plus
 
 GitHub Actions kernel build for **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`, MT6895, Android 13, Linux 5.10.110), with **BakaSU / SukiSU-Ultra + SUSFS**, packaged as an AnyKernel3 flashable zip.

@@ -1,5 +1,7 @@
 **简体中文** | [English](README-en.md)
 
+> **2026-11-06 BakaSU SELinux 适配修复（候选）**：BakaSU 默认固定最新已审核 SUSFS 提交，不再自动回退。三处 SELinux hook 使用 BakaSU 自身策略备份后端，未知上游组合明确拒绝；旧版/DEV 自定义来源可能不再通过检查。依赖没有回退，仍需完整 CI 和实机验收。详见 [适配说明](docs/2026-11-bakasu-selinux-bridge.md)。
+
 [![Build](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml)
 
 # Action-Build-Plus
