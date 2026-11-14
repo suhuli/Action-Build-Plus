@@ -101,6 +101,32 @@ def fix_show_pad(root: Path) -> None:
     print("task_mmu.c: 内核没有 show_pad 标签，已改为直接返回")
 
 
+def fix_log_macros(root: Path) -> None:
+    # SUSFS v2.4.0 (6485568) 新增 SUSFS_LOGI_RL / SUSFS_LOGE_RL，但只在 CONFIG_KSU_SUSFS_ENABLE_LOG
+    # 开启的分支里定义；本仓库关闭 SUSFS 日志，于是 fs/susfs.c 编译报 implicit declaration。
+    # 与上游对 SUSFS_LOGI / SUSFS_LOGE 的做法一致：关闭日志时定义为空。
+    p = root / "fs/susfs.c"
+    if not p.exists():
+        return
+    s = p.read_text()
+    used = sorted(set(re.findall(r"^(?!\s*#)[^\n]*?\b(SUSFS_LOG[A-Z_]*)\(", s, re.M)))
+    m = re.search(r"^#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG\n(.*?)^#else\n(.*?)^#endif\n", s, re.M | re.S)
+    if not m:
+        if any(not re.search(r"^#define %s\(" % n, s, re.M) for n in used):
+            sys.exit("susfs.c: 找不到 SUSFS 日志宏定义块，请检查源码")
+        return
+    missing = [n for n in used if not re.search(r"^#define %s\(" % n, m.group(2), re.M)
+               and f"#ifndef {n}\n" not in s]
+    if not missing:
+        return
+    for n in missing:
+        if not re.search(r"^#define %s\(" % n, m.group(1), re.M):
+            sys.exit(f"susfs.c: {n} 在开启日志时也没有定义，请检查源码")
+    extra = "".join(f"#ifndef {n}\n#define {n}(fmt, ...)\n#endif\n" for n in missing)
+    p.write_text(s[:m.end()] + extra + s[m.end():])
+    print("susfs.c: 已为关闭日志的配置补充空定义: " + ", ".join(missing))
+
+
 def main() -> None:
     if len(sys.argv) != 3 or sys.argv[1] not in ("pre", "post"):
         sys.exit(__doc__)
@@ -110,6 +136,7 @@ def main() -> None:
     else:
         fix_vma_pad_start(root)
         fix_show_pad(root)
+        fix_log_macros(root)
 
 
 if __name__ == "__main__":

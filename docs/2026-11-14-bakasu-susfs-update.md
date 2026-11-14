@@ -32,3 +32,9 @@ The gap is that the SUSFS kernel patch routes the three SELinux hooks to its typ
 ## Remaining acceptance
 
 Full BakaSU and SukiSU workflow builds on this revision, then device validation. Back up the original boot image first.
+
+## Build #49/#50 failure and fix (same day)
+
+Both first builds on this revision failed in `fs/susfs.c`: `implicit declaration of function 'SUSFS_LOGI_RL'`. SUSFS `6485568` defines the new rate-limited log macros only when `CONFIG_KSU_SUSFS_ENABLE_LOG` is on; this repository builds with SUSFS logging off. This is an upstream SUSFS omission, unrelated to BakaSU or the SELinux bridge.
+
+`scripts/susfs_fixups.py post` now adds empty fallbacks for log macros that are used but missing from the logging-off branch, mirroring upstream's own empty `SUSFS_LOGI` / `SUSFS_LOGE`. It is a no-op on older SUSFS and once upstream fixes it. 4 regression tests added (101 total).
