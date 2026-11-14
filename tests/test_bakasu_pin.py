@@ -11,7 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
-PIN = '516d3e87fbc986ccefdde2c2765f1700612441a9'
+PIN = '548d1dda060ca198823d8808804d01f5209ef4a9'
 OLD = '239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb'
 SUKI = '1cfa57340590971cba7521ed536da8ebbedc5f0a'
 

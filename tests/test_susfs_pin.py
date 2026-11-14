@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
 PIN = '31eb14add587b0a089dfe1819f92cc94920e141e'
 OLD = 'ca7093a1a26f7911987110c34a1352d74cfb1d09'
-BAKA = '516d3e87fbc986ccefdde2c2765f1700612441a9'
+BAKA = '548d1dda060ca198823d8808804d01f5209ef4a9'
 SUKI = '1cfa57340590971cba7521ed536da8ebbedc5f0a'
 
 
@@ -45,7 +45,7 @@ class SusfsPinTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 text = (ROOT / filename).read_text()
                 self.assertIn('/-/commit/' + PIN, text)
-                self.assertIn('v2.3.0', text)
+                self.assertIn('v2.4.0', text)
                 self.assertIn(OLD, text)  # Explicit rollback remains documented.
 
     def test_default_follows_latest_compatible(self):

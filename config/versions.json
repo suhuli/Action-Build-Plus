@@ -1,9 +1,9 @@
 {
-  "reviewed_at": "2026-11-06",
+  "reviewed_at": "2026-11-14",
   "bakasu": {
     "repo": "Baka-SU/BakaSU",
     "branch": "main",
-    "commit": "516d3e87fbc986ccefdde2c2765f1700612441a9"
+    "commit": "548d1dda060ca198823d8808804d01f5209ef4a9"
   },
   "sukisu": {
     "repo": "SukiSU-Ultra/SukiSU-Ultra",
@@ -18,7 +18,7 @@
   "susfs": {
     "repo": "https://gitlab.com/simonpunk/susfs4ksu.git",
     "branch": "gki-android12-5.10",
-    "commit": "b0e474642cf77ee797004a454fa441362723d0ba"
+    "commit": "5436438b5cc77f146e04f71070da153dabe17a9d"
   },
   "kpm": {
     "repo": "SukiSU-Ultra/SukiSU_patch",

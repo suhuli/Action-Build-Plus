@@ -8,15 +8,15 @@
 
 为 **一加 Ace 竞速版**（`oneplus_ace_race_t` / MT6895 / Android 13）编译带 **BakaSU / SukiSU-Ultra + SUSFS** 的 Linux 5.10.110 内核，生成 AnyKernel3 刷机包。
 
-## 当前版本（2026-11-06）
+## 当前版本（2026-11-14）
 
 已恢复改版前的完整参数界面、顺序、默认值与直接选择方式，不使用 PROFILE 或覆盖层；更新本轮审查的四项依赖（待 CI 编译验证）。BakaSU 的原选项名仍为 `RESUKISU` / `RESUKISU_SPOOF`。
 
 | 组件 | 固定版本 / 策略 |
 |---|---|
 | 机型源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895)，`oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU（默认） | 官方 [`516d3e87`](https://github.com/Baka-SU/BakaSU/commit/516d3e87fbc986ccefdde2c2765f1700612441a9)（本轮核对），包含上游原生 preinit；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
-| SUSFS（默认最新版 BakaSU/SukiSU） | v2.3.0，`gki-android12-5.10` 最新兼容提交；保底 [`b0e47464`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/b0e474642cf77ee797004a454fa441362723d0ba)，包含 SELinux hide 重构和独立 priority UID filter 配置 |
+| BakaSU（默认） | 官方 [`548d1dda`](https://github.com/Baka-SU/BakaSU/commit/548d1dda060ca198823d8808804d01f5209ef4a9)（本轮核对），包含上游原生 preinit；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
+| SUSFS（默认最新版 BakaSU/SukiSU） | v2.4.0，`gki-android12-5.10` 最新兼容提交；保底 [`5436438b`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/5436438b5cc77f146e04f71070da153dabe17a9d)，包含 SELinux hide 重构和独立 priority UID filter 配置 |
 | SukiSU-Ultra | `builtin` [`1cfa5734`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/1cfa57340590971cba7521ed536da8ebbedc5f0a)，UAPI 6 |
 | 显式旧版源码回退的 SUSFS 保底 | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)，保留旧组合的回退能力 |
 | Baseband-guard | [`028ff7fd`](https://github.com/vc-teahouse/Baseband-guard/commit/028ff7fd509e2104596da7cc1ef8e6ce2a0c9082)，适配回移的 `selinux_cred` |
@@ -42,7 +42,7 @@
 |---|---|---|
 | 管理器调用方向 `MANAGER_SOURCE` | `RESUKISU` | 内核里集成哪一个 KernelSU：`RESUKISU` 为 BakaSU，`SUKISU` 为 SukiSU-Ultra；带 `_SPOOF` 的附带伪装版管理器（随机包名）。SukiSU-Ultra 管理器的 MIUIX / Material 3 界面在管理器设置里切换，不再分两个选项 |
 | 内核模块实现 `KPM` | `N/A` | `KPM`/`KPN` 仅 SukiSU-Ultra 可用，BakaSU 下会自动跳过 |
-| SUSFS 版本 `SUSFS_META` | 空 | 留空自动使用 SUSFS 分支上与当前 KernelSU 接口兼容的最新提交（默认最新版 BakaSU/SukiSU 保底 `b0e47464`；显式旧版回退保底 `31eb14ad`）；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
+| SUSFS 版本 `SUSFS_META` | 空 | 留空自动使用 SUSFS 分支上与当前 KernelSU 接口兼容的最新提交（默认最新版 BakaSU/SukiSU 保底 `5436438b`；显式旧版回退保底 `31eb14ad`）；填提交哈希或回退次数可回退；填 `-1` 关闭 SUSFS（SukiSU-Ultra 不能关闭，见下文） |
 | 构建时间 `BUILD_TIME` | `Mon Oct 24 22:45:30 UTC 2022` | 写入 `uname -v` 的时间（自动加上 `#1 SMP PREEMPT`）。默认与原厂内核一致；`F` 为实际编译时间，也可填任意时间字符串 |
 | 版本参数 `KSU_META` | `//` | 格式 `分支/自定义标识/提交哈希`，三段都可留空，但两个 `/` 不能删 |
 | 内核后缀 `SUFFIX` | `9-00011-g8efa13274425-ab9212784` | `uname -r` 中 `5.10.110-android12-` 之后的部分。默认与原厂内核一致；清空则使用随机字符串 |
@@ -71,9 +71,9 @@
 
 ## SUSFS 选源和回退
 
-留空时从分支 HEAD 向后检查，默认最新版 BakaSU/SukiSU 最多回退到 `b0e47464`，不能悄悄回退到这次更新之前。显式自定义/旧版源码保留 `31eb14ad` 保底。自动模式无兼容提交则停止；显式指定的提交接口检查失败也停止，不强行编译缺失接口的组合。
+留空时从分支 HEAD 向后检查，默认最新版 BakaSU/SukiSU 最多回退到 `5436438b`，不能悄悄回退到这次更新之前。显式自定义/旧版源码保留 `31eb14ad` 保底。自动模式无兼容提交则停止；显式指定的提交接口检查失败也停止，不强行编译缺失接口的组合。
 
-- 固定本次 SUSFS：`SUSFS_META=b0e474642cf77ee797004a454fa441362723d0ba`。
+- 固定本次 SUSFS：`SUSFS_META=5436438b5cc77f146e04f71070da153dabe17a9d`。
 - 回退上一次 BakaSU：`KSU_META=//5b76b884c75f729a220bb317aa4a4fc78f0e0e9c`，配 `SUSFS_META=31eb14add587b0a089dfe1819f92cc94920e141e`。
 - 更早 BakaSU release：`KSU_META=//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`。
 - 更早 SUSFS：`ca7093a1a26f7911987110c34a1352d74cfb1d09` 或 `82f08351fadb8b19dd6591bd14634d02ad832145`，仅用于明确的兼容性回退，不保证适合新 BakaSU。

@@ -8,8 +8,8 @@ from test_susfs_auto import make_susfs, write, run_check
 from test_bakasu_pin import WF, bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BAKA = '516d3e87fbc986ccefdde2c2765f1700612441a9'
-SUSFS = 'b0e474642cf77ee797004a454fa441362723d0ba'
+BAKA = '548d1dda060ca198823d8808804d01f5209ef4a9'
+SUSFS = '5436438b5cc77f146e04f71070da153dabe17a9d'
 LEGACY = '31eb14add587b0a089dfe1819f92cc94920e141e'
 CONTRACT = '''ifeq ($(shell grep -q "ksu_selinux_hide_running" $(srctree)/security/selinux/hooks.c; echo $$?),0)
 $(info -- BakaSU/susfs_feature_check: selinux_hide manual hook found)
