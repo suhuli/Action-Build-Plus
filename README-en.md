@@ -1,18 +1,20 @@
 [简体中文](README.md) | **English**
 
+> **2026-11-06 BakaSU SELinux bridge (candidate)**: default BakaSU builds pin the latest reviewed SUSFS SHA, with no silent fallback. Three SELinux hooks use BakaSU's policy-snapshot backend; unreviewed combinations fail closed, including unsupported custom legacy/dev sources. Dependencies are not downgraded. Full CI and device acceptance are still required. See [repair notes](docs/2026-11-bakasu-selinux-bridge.md).
+
 # Action-Build-Plus
 
 GitHub Actions kernel build for **OnePlus Ace Racing Edition** (`oneplus_ace_race_t`, MT6895, Android 13, Linux 5.10.110), with **BakaSU / SukiSU-Ultra + SUSFS**, packaged as an AnyKernel3 flashable zip.
 
-## Current sources (2026-11-06)
+## Current sources (2026-11-14)
 
 The complete pre-redesign input layout, ordering, defaults and direct-selection flow are restored, without PROFILE or an override layer. The four reviewed dependencies are updated; this revision still needs CI build verification. BakaSU retains the original RESUKISU / RESUKISU_SPOOF names.
 
 | Component | Pin / policy |
 |---|---|
 | Device source | OnePlusOSS/android_kernel_5.10_oneplus_mt6895, `oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU (default) | Official [`516d3e87`](https://github.com/Baka-SU/BakaSU/commit/516d3e87fbc986ccefdde2c2765f1700612441a9), native upstream preinit; no old Fork `KSU_NO_PREINIT` bridge |
-| SUSFS (default latest BakaSU/SukiSU) | v2.3.0, newest compatible `gki-android12-5.10` commit; minimum [`b0e47464`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/b0e474642cf77ee797004a454fa441362723d0ba), including the SELinux hide rework and independent priority UID filter configuration |
+| BakaSU (default) | Official [`548d1dda`](https://github.com/Baka-SU/BakaSU/commit/548d1dda060ca198823d8808804d01f5209ef4a9), native upstream preinit; no old Fork `KSU_NO_PREINIT` bridge |
+| SUSFS (default latest BakaSU/SukiSU) | v2.4.0, newest compatible `gki-android12-5.10` commit; minimum [`5436438b`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/5436438b5cc77f146e04f71070da153dabe17a9d), including the SELinux hide rework and independent priority UID filter configuration |
 | SukiSU-Ultra | `builtin` @ `1cfa57340590971cba7521ed536da8ebbedc5f0a`, UAPI 6 |
 | SUSFS minimum for explicitly selected legacy sources | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e) |
 | Baseband-guard | [`028ff7fd`](https://github.com/vc-teahouse/Baseband-guard/commit/028ff7fd509e2104596da7cc1ef8e6ce2a0c9082), backported `selinux_cred` compatibility |
@@ -39,7 +41,7 @@ See the [Chinese parameter table](README.md#参数说明) for all existing input
 - Current BakaSU no longer builds spoof managers. `RESUKISU_SPOOF` fails before compilation and asks for ordinary `RESUKISU`; explicit legacy sources still require both spoof CI support and an exact-commit APK. No silent ordinary-APK substitution.
 - The symbol checker now also checks KSU → SUSFS calls and rejects missing new SELinux helpers. These checks are not a full C preprocessor or a replacement for compilation/device testing.
 
-- Empty `SUSFS_META` searches backward from branch HEAD to the applicable minimum; default latest BakaSU/SukiSU cannot silently fall back before `b0e47464`. Explicit custom/legacy sources retain `31eb14ad`. No compatible automatic candidate is a hard failure; incompatible explicit overrides also stop rather than forcing a broken build.
+- Empty `SUSFS_META` searches backward from branch HEAD to the applicable minimum; default latest BakaSU/SukiSU cannot silently fall back before `5436438b`. Explicit custom/legacy sources retain `31eb14ad`. No compatible automatic candidate is a hard failure; incompatible explicit overrides also stop rather than forcing a broken build.
 - `scripts/susfs_ksu_check.py` checks real non-static definitions. The audited BakaSU `my_setprocattr` alias is accepted only when the selected SUSFS hook, upstream Kbuild detection contract and real function definition all exist. Missing symbols are not ignored and no stub implementation is added.
 - This is not a full C preprocessor, ABI/type/configuration validation or runtime proof. Complete compilation and device tests remain necessary.
 - Current official BakaSU does not provide the full manager/scheduling integration for the new SUSFS priority UID filter. Updating the kernel-side code and fixes does **not** claim end-to-end support for that feature.
@@ -47,7 +49,7 @@ See the [Chinese parameter table](README.md#参数说明) for all existing input
 
 Explicit rollback options:
 
-- Current SUSFS: `b0e474642cf77ee797004a454fa441362723d0ba`.
+- Current SUSFS: `5436438b5cc77f146e04f71070da153dabe17a9d`.
 - Previous BakaSU: `KSU_META=//5b76b884c75f729a220bb317aa4a4fc78f0e0e9c`, with SUSFS `31eb14add587b0a089dfe1819f92cc94920e141e`.
 - Older release source: `KSU_META=//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`.
 - Historical SUSFS refs: `ca7093a1a26f7911987110c34a1352d74cfb1d09` or `82f08351fadb8b19dd6591bd14634d02ad832145`; not a promise of compatibility with current BakaSU.

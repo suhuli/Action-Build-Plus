@@ -1,0 +1,279 @@
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 9186c35..d5cfc65 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -6556,156 +6556,14 @@ abort_change:
+ }
+ 
+ #ifdef CONFIG_KSU_SUSFS
+-static int susfs_selinux_setprocattr(const char *name, void *value, size_t size)
+-{
+-	struct task_security_struct *tsec;
+-	struct cred *new;
+-	u32 mysid = current_sid(), sid = 0, ptsid;
+-	int error;
+-	char *str = value;
+-
+-	/*
+-	 * Basic control over ability to set these attributes at all.
+-	 */
+-	if (!strcmp(name, "exec"))
+-		error = avc_has_perm(&selinux_state,
+-				     mysid, mysid, SECCLASS_PROCESS,
+-				     PROCESS__SETEXEC, NULL);
+-	else if (!strcmp(name, "fscreate"))
+-		error = avc_has_perm(&selinux_state,
+-				     mysid, mysid, SECCLASS_PROCESS,
+-				     PROCESS__SETFSCREATE, NULL);
+-	else if (!strcmp(name, "keycreate"))
+-		error = avc_has_perm(&selinux_state,
+-				     mysid, mysid, SECCLASS_PROCESS,
+-				     PROCESS__SETKEYCREATE, NULL);
+-	else if (!strcmp(name, "sockcreate"))
+-		error = avc_has_perm(&selinux_state,
+-				     mysid, mysid, SECCLASS_PROCESS,
+-				     PROCESS__SETSOCKCREATE, NULL);
+-	else if (!strcmp(name, "current"))
+-		error = avc_has_perm(&selinux_state,
+-				     mysid, mysid, SECCLASS_PROCESS,
+-				     PROCESS__SETCURRENT, NULL);
+-	else
+-		error = -EINVAL;
+-	if (error)
+-		return error;
+-
+-	/* Obtain a SID for the context, if one was specified. */
+-	if (size && str[0] && str[0] != '\n') {
+-		if (str[size-1] == '\n') {
+-			str[size-1] = 0;
+-			size--;
+-		}
+-		error = susfs_security_context_to_sid(&selinux_state, value, size,
+-						&sid, GFP_KERNEL);
+-		if (error == -EINVAL && !strcmp(name, "fscreate")) {
+-			if (!has_cap_mac_admin(true)) {
+-				struct audit_buffer *ab;
+-				size_t audit_size;
+-
+-				/* We strip a nul only if it is at the end, otherwise the
+-				 * context contains a nul and we should audit that */
+-				if (str[size - 1] == '\0')
+-					audit_size = size - 1;
+-				else
+-					audit_size = size;
+-				ab = audit_log_start(audit_context(),
+-						     GFP_ATOMIC,
+-						     AUDIT_SELINUX_ERR);
+-				if (!ab)
+-					return error;
+-				audit_log_format(ab, "op=fscreate invalid_context=");
+-				audit_log_n_untrustedstring(ab, value, audit_size);
+-				audit_log_end(ab);
+-
+-				return error;
+-			}
+-			error = security_context_to_sid_force(
+-						      &selinux_state,
+-						      value, size, &sid);
+-		}
+-		if (error)
+-			return error;
+-	}
+-
+-	new = prepare_creds();
+-	if (!new)
+-		return -ENOMEM;
+-
+-	/* Permission checking based on the specified context is
+-	   performed during the actual operation (execve,
+-	   open/mkdir/...), when we know the full context of the
+-	   operation.  See selinux_bprm_creds_for_exec for the execve
+-	   checks and may_create for the file creation checks. The
+-	   operation will then fail if the context is not permitted. */
+-	tsec = selinux_cred(new);
+-	if (!strcmp(name, "exec")) {
+-		tsec->exec_sid = sid;
+-	} else if (!strcmp(name, "fscreate")) {
+-		tsec->create_sid = sid;
+-	} else if (!strcmp(name, "keycreate")) {
+-		if (sid) {
+-			error = avc_has_perm(&selinux_state, mysid, sid,
+-					     SECCLASS_KEY, KEY__CREATE, NULL);
+-			if (error)
+-				goto abort_change;
+-		}
+-		tsec->keycreate_sid = sid;
+-	} else if (!strcmp(name, "sockcreate")) {
+-		tsec->sockcreate_sid = sid;
+-	} else if (!strcmp(name, "current")) {
+-		error = -EINVAL;
+-		if (sid == 0)
+-			goto abort_change;
+-
+-		/* Only allow single threaded processes to change context */
+-		if (!current_is_single_threaded()) {
+-			error = security_bounded_transition(&selinux_state,
+-							    tsec->sid, sid);
+-			if (error)
+-				goto abort_change;
+-		}
+-
+-		/* Check permissions for the transition. */
+-		error = avc_has_perm(&selinux_state,
+-				     tsec->sid, sid, SECCLASS_PROCESS,
+-				     PROCESS__DYNTRANSITION, NULL);
+-		if (error)
+-			goto abort_change;
+-
+-		/* Check for ptracing, and update the task SID if ok.
+-		   Otherwise, leave SID unchanged and fail. */
+-		ptsid = ptrace_parent_sid();
+-		if (ptsid != 0) {
+-			error = avc_has_perm(&selinux_state,
+-					     ptsid, sid, SECCLASS_PROCESS,
+-					     PROCESS__PTRACE, NULL);
+-			if (error)
+-				goto abort_change;
+-		}
+-
+-		tsec->sid = sid;
+-	} else {
+-		error = -EINVAL;
+-		goto abort_change;
+-	}
+-
+-	commit_creds(new);
+-	return size;
+-
+-abort_change:
+-	abort_creds(new);
+-	return error;
+-}
++extern int my_setprocattr(const char *name, void *value, size_t size);
+ 
+ static int handle_selinux_setprocattr(const char *name, void *value, size_t size)
+ {
+ 	if ((likely(!strcmp(name, "current") &&
+ 				current_uid().val >= 10000 &&
+ 				ksu_selinux_hide_running)))
+-		return susfs_selinux_setprocattr(name, value, size);
++		return my_setprocattr(name, value, size);
+ 	return selinux_setprocattr(name, value, size);
+ }
+ #endif // #ifdef CONFIG_KSU_SUSFS
+diff --git a/security/selinux/selinuxfs.c b/security/selinux/selinuxfs.c
+index 790f412..d8957d1 100644
+--- a/security/selinux/selinuxfs.c
++++ b/security/selinux/selinuxfs.c
+@@ -744,45 +744,11 @@ out:
+ extern int susfs_security_context_to_sid(struct selinux_state *state,
+ 			    const char *scontext, u32 scontext_len, u32 *sid,
+ 			    gfp_t gfp);
+-static ssize_t susfs_sel_write_context(struct file *file, char *buf, size_t size)
+-{
+-	struct selinux_fs_info *fsi = file_inode(file)->i_sb->s_fs_info;
+-	struct selinux_state *state = fsi->state;
+-	char *canon = NULL;
+-	u32 sid, len;
+-	ssize_t length;
+-
+-	length = avc_has_perm(&selinux_state,
+-			      current_sid(), SECINITSID_SECURITY,
+-			      SECCLASS_SECURITY, SECURITY__CHECK_CONTEXT, NULL);
+-	if (length)
+-		goto out;
+-
+-	length = susfs_security_context_to_sid(state, buf, size, &sid, GFP_KERNEL);
+-	if (length)
+-		goto out;
+-
+-	length = security_sid_to_context(state, sid, &canon, &len);
+-	if (length)
+-		goto out;
+-
+-	length = -ERANGE;
+-	if (len > SIMPLE_TRANSACTION_LIMIT) {
+-		pr_err("SELinux: %s:  context size (%u) exceeds "
+-			"payload max\n", __func__, len);
+-		goto out;
+-	}
+-
+-	memcpy(buf, canon, len);
+-	length = len;
+-out:
+-	kfree(canon);
+-	return length;
+-}
++extern ssize_t my_write_context(struct file *file, char *buf, size_t size);
+ 
+ static ssize_t handle_sel_write_context(struct file *file, char *buf, size_t size) {
+ 	if ((likely(current_uid().val >= 10000 && ksu_selinux_hide_running)))
+-		return susfs_sel_write_context(file, buf, size);
++		return my_write_context(file, buf, size);
+ 	return sel_write_context(file, buf, size);
+ }
+ #endif // #ifdef CONFIG_KSU_SUSFS
+@@ -1043,61 +1009,12 @@ out:
+ }
+ 
+ #ifdef CONFIG_KSU_SUSFS
+-static ssize_t susfs_sel_write_access(struct file *file, char *buf, size_t size)
+-{
+-	struct selinux_fs_info *fsi = file_inode(file)->i_sb->s_fs_info;
+-	struct selinux_state *state = fsi->state;
+-	char *scon = NULL, *tcon = NULL;
+-	u32 ssid, tsid;
+-	u16 tclass;
+-	struct av_decision avd;
+-	ssize_t length;
+-
+-	length = avc_has_perm(&selinux_state,
+-			      current_sid(), SECINITSID_SECURITY,
+-			      SECCLASS_SECURITY, SECURITY__COMPUTE_AV, NULL);
+-	if (length)
+-		goto out;
+-
+-	length = -ENOMEM;
+-	scon = kzalloc(size + 1, GFP_KERNEL);
+-	if (!scon)
+-		goto out;
+-
+-	length = -ENOMEM;
+-	tcon = kzalloc(size + 1, GFP_KERNEL);
+-	if (!tcon)
+-		goto out;
+-
+-	length = -EINVAL;
+-	if (sscanf(buf, "%s %s %hu", scon, tcon, &tclass) != 3)
+-		goto out;
+-
+-	length = susfs_security_context_str_to_sid(state, scon, &ssid, GFP_KERNEL);
+-	if (length)
+-		goto out;
+-
+-	length = susfs_security_context_str_to_sid(state, tcon, &tsid, GFP_KERNEL);
+-	if (length)
+-		goto out;
+-
+-	susfs_security_compute_av_user(state, ssid, tsid, tclass, &avd);
+-
+-	length = scnprintf(buf, SIMPLE_TRANSACTION_LIMIT,
+-			  "%x %x %x %x %u %x",
+-			  avd.allowed, 0xffffffff,
+-			  avd.auditallow, avd.auditdeny,
+-			  avd.seqno, avd.flags);
+-out:
+-	kfree(tcon);
+-	kfree(scon);
+-	return length;
+-}
++extern ssize_t my_write_access(struct file *file, char *buf, size_t size);
+ 
+ static ssize_t handle_sel_write_access(struct file *file, char *buf, size_t size)
+ {
+ 	if ((likely(current_uid().val >= 10000 && ksu_selinux_hide_running)))
+-		return susfs_sel_write_access(file, buf, size);
++		return my_write_access(file, buf, size);
+ 	return sel_write_access(file, buf, size);
+ }
+ #endif // #ifdef CONFIG_KSU_SUSFS

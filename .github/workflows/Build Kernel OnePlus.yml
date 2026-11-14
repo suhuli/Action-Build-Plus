@@ -475,7 +475,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="516d3e87fbc986ccefdde2c2765f1700612441a9"  # Official BakaSU main reviewed 2026-11-06; build verification required
+          RESUKISU_COMMIT="548d1dda060ca198823d8808804d01f5209ef4a9"  # Official BakaSU main reviewed 2026-11-14; build verification required
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 
@@ -809,11 +809,16 @@ jobs:
             # Keep the old SukiSU builtin/explicit legacy BakaSU rollback compatible.
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
             # Both default latest kernels use the modern SUSFS floor; explicit rollback retains the legacy floor.
-            BAKASU_SUSFS_COMMIT="b0e474642cf77ee797004a454fa441362723d0ba"
+            BAKASU_SUSFS_COMMIT="5436438b5cc77f146e04f71070da153dabe17a9d"
             if [[ "${KSU_PINNED:-false}" == true ]]; then
               STABLE_SUSFS_COMMIT="$BAKASU_SUSFS_COMMIT"
             fi
             SUSFS_AUTO=false
+            # BakaSU: latest reviewed pair is reproducible; never silently walk back.
+            # Explicit unreviewed sources fail the SELinux backend contract below.
+            if [[ "${IS_RESUKISU:-false}" == true && -z "${SUSFS_META:-}" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
+              SUSFS_META="$BAKASU_SUSFS_COMMIT"
+            fi
             if [[ -z "$SUSFS_META" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_AUTO=true
               echo "SUSFS: 自动使用最新兼容提交（保底 ${STABLE_SUSFS_COMMIT::8}）"
@@ -823,6 +828,9 @@ jobs:
             KSU_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel"
             COMMON_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
             susfs_ok() {
+              if [[ "$IS_RESUKISU" == true ]]; then
+                python3 "$GITHUB_WORKSPACE/scripts/bakasu_selinux_compat.py" --check kernel_patches "$KSU_SRC" || return 1
+              fi
               python3 "$GITHUB_WORKSPACE/scripts/susfs_feature_compat.py" --check kernel_patches "$KSU_SRC" &&
               python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"
             }
@@ -871,6 +879,7 @@ jobs:
             echo "SUSFS: $(git log -1 --format='%h %s') ($SUSFS_VER)"
             echo "SUSFS_VER=$SUSFS_VER" >> "$GITHUB_ENV"
             echo "SUSFS_SHA=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
+            echo "SUSFS_FULL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
             echo "SUSFS_NOTE=$SUSFS_NOTE" >> "$GITHUB_ENV"
             cd ..
           fi
@@ -895,6 +904,10 @@ jobs:
               exit 1
             fi
             python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" post .
+            if [[ "$IS_RESUKISU" == true ]]; then
+              python3 "$GITHUB_WORKSPACE/scripts/bakasu_selinux_compat.py" --apply "$SUSFS_DIR" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
+              echo "SELINUX_BACKEND=bakasu-snapshot-bridge-v1" >> "$GITHUB_ENV"
+            fi
             if [[ "$IS_RESUKISU" != true ]]; then
               # SukiSU-Ultra builtin 与 SUSFS 补丁的变量类型不一致（ksu_su_compat_enabled），见脚本说明
               python3 "$GITHUB_WORKSPACE/scripts/ksu_susfs_compat.py" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
@@ -1419,6 +1432,17 @@ jobs:
         id: suffix
         run: |
           echo "value=${{ env.IS_RESUKISU != 'true' && (github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN') || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}" >> $GITHUB_OUTPUT
+
+      - name: Record build provenance
+        run: |
+          python3 - <<'PYINFO'
+          import json, os
+          from pathlib import Path
+          keys = ['GITHUB_SHA', 'GITHUB_RUN_ID', 'KSU_SHA', 'SUSFS_FULL_SHA', 'SELINUX_BACKEND', 'AK3_COMMIT']
+          info = {key: os.environ.get(key, '') for key in keys}
+          info['validation'] = 'CI build only; device validation required'
+          Path('AnyKernel3/build-provenance.json').write_text(json.dumps(info, indent=2) + '\n')
+          PYINFO
 
       - name: Pack AnyKernel3 Zip
         id: pack_ak3
