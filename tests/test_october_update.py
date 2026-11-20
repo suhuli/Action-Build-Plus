@@ -8,8 +8,9 @@ from test_susfs_auto import make_susfs, write, run_check
 from test_bakasu_pin import WF, bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BAKA = '548d1dda060ca198823d8808804d01f5209ef4a9'
-SUSFS = '5436438b5cc77f146e04f71070da153dabe17a9d'
+BAKA = '7b65bde0710b5e7c6f755545cb15a4abd417f3a8'
+SUSFS = '784ac9e6fd49bb02499b5b60c57ccc9d0c680204'
+SUKISU_FLOOR = '5436438b5cc77f146e04f71070da153dabe17a9d'
 LEGACY = '31eb14add587b0a089dfe1819f92cc94920e141e'
 CONTRACT = '''ifeq ($(shell grep -q "ksu_selinux_hide_running" $(srctree)/security/selinux/hooks.c; echo $$?),0)
 $(info -- BakaSU/susfs_feature_check: selinux_hide manual hook found)
@@ -76,7 +77,7 @@ class UpdatedPinTests(unittest.TestCase):
         self.assertEqual(self.source_floor(), SUSFS)
 
     def test_latest_sukisu_uses_modern_floor(self):
-        self.assertEqual(self.source_floor(baka=False), SUSFS)
+        self.assertEqual(self.source_floor(baka=False), SUKISU_FLOOR)
 
     def test_explicit_legacy_bakasu_rollback_keeps_old_floor(self):
         self.assertEqual(self.source_floor(sha='5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'), LEGACY)

@@ -17,7 +17,11 @@ CONTRACT = {
     'selinux/rules.c': 'd599f97877dcff4a59201ca32dd9f765f734823d043b9569504f6eb66397b2e5',
 }
 SUSFS_PATCH = '50_add_susfs_in_gki-android12-5.10.patch'
-SUSFS_HASH = 'f17439344475ae8ae91b80c46a14e87c475db2a6a396cf6adfe142f1ee6a8b74'
+# Both layouts are covered by exact-source OEM patch regression fixtures.
+SUSFS_HASHES = {
+    'f17439344475ae8ae91b80c46a14e87c475db2a6a396cf6adfe142f1ee6a8b74',  # 5436438b
+    'bc7b152944cf13384f17238df43fc3c97025c254b61e47afb9864cca1051e041',  # 784ac9e6
+}
 
 
 def validate(susfs, ksu):
@@ -25,7 +29,7 @@ def validate(susfs, ksu):
     for name, expected in CONTRACT.items():
         if hashlib.sha256((ksu / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f'unreviewed BakaSU SELinux contract: {name}')
-    if hashlib.sha256((susfs / SUSFS_PATCH).read_bytes()).hexdigest() != SUSFS_HASH:
+    if hashlib.sha256((susfs / SUSFS_PATCH).read_bytes()).hexdigest() not in SUSFS_HASHES:
         raise ValueError('unreviewed SUSFS SELinux patch; review new upstream before building')
 
 

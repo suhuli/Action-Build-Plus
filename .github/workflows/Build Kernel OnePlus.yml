@@ -475,7 +475,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="548d1dda060ca198823d8808804d01f5209ef4a9"  # Official BakaSU main reviewed 2026-11-14; build verification required
+          RESUKISU_COMMIT="7b65bde0710b5e7c6f755545cb15a4abd417f3a8"  # BakaSU main candidate 2026-11-20; full CI/device verification required
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 
@@ -808,10 +808,15 @@ jobs:
             # 选第一个与当前 KernelSU 源码接口兼容的提交（scripts/susfs_ksu_check.py），最多回退到下面的保底提交。
             # Keep the old SukiSU builtin/explicit legacy BakaSU rollback compatible.
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
-            # Both default latest kernels use the modern SUSFS floor; explicit rollback retains the legacy floor.
-            BAKASU_SUSFS_COMMIT="5436438b5cc77f146e04f71070da153dabe17a9d"
+            # Keep the SukiSU auto-selection floor unchanged by the BakaSU candidate.
+            SUKISU_SUSFS_FLOOR="5436438b5cc77f146e04f71070da153dabe17a9d"
+            BAKASU_SUSFS_COMMIT="784ac9e6fd49bb02499b5b60c57ccc9d0c680204"
             if [[ "${KSU_PINNED:-false}" == true ]]; then
-              STABLE_SUSFS_COMMIT="$BAKASU_SUSFS_COMMIT"
+              if [[ "${IS_RESUKISU:-false}" == true ]]; then
+                STABLE_SUSFS_COMMIT="$BAKASU_SUSFS_COMMIT"
+              else
+                STABLE_SUSFS_COMMIT="$SUKISU_SUSFS_FLOOR"
+              fi
             fi
             SUSFS_AUTO=false
             # BakaSU: latest reviewed pair is reproducible; never silently walk back.

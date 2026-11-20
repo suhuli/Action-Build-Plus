@@ -27,6 +27,28 @@ class BridgeTests(unittest.TestCase):
         return {str(p.relative_to(self.root)): p.read_bytes()
                 for p in self.root.rglob('*') if p.is_file()}
 
+    def test_candidate_preserves_new_label_hooks_and_remains_idempotent(self):
+        fixture = ROOT / 'tests/fixtures/bakasu_selinux_candidate'
+        for p in fixture.rglob('*.gz'):
+            dest = self.root / str(p.relative_to(fixture))[:-3]
+            dest.write_bytes(gzip.decompress(p.read_bytes()))
+        hooks = self.root / 'security/selinux/hooks.c'
+        # Only the three existing snapshot routes may change; new upstream
+        # inode label hooks occur before the setprocattr bridge and stay intact.
+        before = hooks.read_text().split('static int handle_selinux_setprocattr(', 1)[0]
+        self.assertIn('static int susfs_selinux_inode_setxattr(', before)
+        self.assertIn('susfs_security_context_to_sid_force(', before)
+        self.assertEqual(apply(self.sus, self.ksu, self.root), 'applied')
+        after = hooks.read_text()
+        anchor = 'static int susfs_selinux_setprocattr('
+        self.assertIn(anchor, before)
+        self.assertEqual(before.split(anchor, 1)[0],
+                         after.split('extern int my_setprocattr(', 1)[0])
+        verify(self.root)
+        snapshot = self.snapshot()
+        self.assertEqual(apply(self.sus, self.ksu, self.root), 'already applied')
+        self.assertEqual(snapshot, self.snapshot())
+
     def test_check_does_not_mutate_sources(self):
         before = self.snapshot()
         validate(self.sus, self.ksu)
