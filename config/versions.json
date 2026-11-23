@@ -1,9 +1,9 @@
 {
-  "reviewed_at": "2026-11-20",
+  "reviewed_at": "2026-11-23",
   "bakasu": {
     "repo": "Baka-SU/BakaSU",
     "branch": "main",
-    "commit": "7b65bde0710b5e7c6f755545cb15a4abd417f3a8"
+    "commit": "63ad1ea3a90455dee9d77163cdafb028d8a90416"
   },
   "sukisu": {
     "repo": "SukiSU-Ultra/SukiSU-Ultra",

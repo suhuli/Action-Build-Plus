@@ -17,7 +17,7 @@
 | 组件 | 固定版本 / 策略 |
 |---|---|
 | 机型源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895)，`oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU（默认） | 官方 [`7b65bde0`](https://github.com/Baka-SU/BakaSU/commit/7b65bde0710b5e7c6f755545cb15a4abd417f3a8)（本轮核对），包含上游原生 preinit；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
+| BakaSU（默认） | 官方 [`63ad1ea3`](https://github.com/Baka-SU/BakaSU/commit/63ad1ea3a90455dee9d77163cdafb028d8a90416)（2026-11-23 核对），包含上游原生 preinit 与原生 SUSFS SELinux 适配（不再打桥接补丁）；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
 | SUSFS v2.4.0 | BakaSU 候选固定 [`784ac9e6`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/784ac9e6fd49bb02499b5b60c57ccc9d0c680204)；SukiSU 仍自动选择最新兼容提交，保底 `5436438b` |
 | SukiSU-Ultra | `builtin` [`1cfa5734`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/1cfa57340590971cba7521ed536da8ebbedc5f0a)，UAPI 6 |
 | 显式旧版源码回退的 SUSFS 保底 | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)，保留旧组合的回退能力 |

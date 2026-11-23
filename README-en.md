@@ -15,7 +15,7 @@ The complete pre-redesign input layout, ordering, defaults and direct-selection 
 | Component | Pin / policy |
 |---|---|
 | Device source | OnePlusOSS/android_kernel_5.10_oneplus_mt6895, `oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU (default) | Official [`7b65bde0`](https://github.com/Baka-SU/BakaSU/commit/7b65bde0710b5e7c6f755545cb15a4abd417f3a8), native upstream preinit; no old Fork `KSU_NO_PREINIT` bridge |
+| BakaSU (default) | Official [`63ad1ea3`](https://github.com/Baka-SU/BakaSU/commit/63ad1ea3a90455dee9d77163cdafb028d8a90416), native upstream preinit and native SUSFS SELinux ledger support (bridge no longer applied); no old Fork `KSU_NO_PREINIT` bridge |
 | SUSFS v2.4.0 | BakaSU candidate pinned to [`784ac9e6`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/784ac9e6fd49bb02499b5b60c57ccc9d0c680204); SukiSU still auto-selects a compatible commit, with the unchanged `5436438b` floor |
 | SukiSU-Ultra | `builtin` @ `1cfa57340590971cba7521ed536da8ebbedc5f0a`, UAPI 6 |
 | SUSFS minimum for explicitly selected legacy sources | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e) |

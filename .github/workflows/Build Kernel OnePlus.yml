@@ -475,7 +475,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="7b65bde0710b5e7c6f755545cb15a4abd417f3a8"  # BakaSU main candidate 2026-11-20; full CI/device verification required
+          RESUKISU_COMMIT="63ad1ea3a90455dee9d77163cdafb028d8a90416"  # BakaSU main 2026-11-23, native SUSFS ledger support; full CI/device verification required
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 
@@ -909,9 +909,9 @@ jobs:
               exit 1
             fi
             python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" post .
+            # Native BakaSU (>= 0799a678) keeps the SUSFS patch untouched; older pins use the audited bridge.
             if [[ "$IS_RESUKISU" == true ]]; then
               python3 "$GITHUB_WORKSPACE/scripts/bakasu_selinux_compat.py" --apply "$SUSFS_DIR" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
-              echo "SELINUX_BACKEND=bakasu-snapshot-bridge-v1" >> "$GITHUB_ENV"
             fi
             if [[ "$IS_RESUKISU" != true ]]; then
               # SukiSU-Ultra builtin 与 SUSFS 补丁的变量类型不一致（ksu_su_compat_enabled），见脚本说明

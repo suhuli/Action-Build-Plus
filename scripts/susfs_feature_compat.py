@@ -11,7 +11,9 @@ from pathlib import Path
 
 FLAG='CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER'
 FUNC='susfs_set_priority_uid_filter'
-CALL=re.compile(r'(?P<i>[ \t]*)case CMD_SUSFS_SET_PRIORITY_UID_FILTER:\n(?P=i)[ \t]+susfs_set_priority_uid_filter\(arg\);\n(?P=i)[ \t]+return 0;')
+# Same audited ioctl body; BakaSU >= 0799a678 wraps it in a brace block (and
+# already guards it upstream), SukiSU uses the bare case form.
+CALL=re.compile(r'(?P<i>[ \t]*)case CMD_SUSFS_SET_PRIORITY_UID_FILTER:(?P<b>[ \t]*\{)?\n(?P=i)[ \t]+susfs_set_priority_uid_filter\(arg\);\n(?P=i)[ \t]+return 0;(?(b)\n(?P=i)\})')
 
 def plan(susfs,ksu):
     susfs,ksu=Path(susfs),Path(ksu)
