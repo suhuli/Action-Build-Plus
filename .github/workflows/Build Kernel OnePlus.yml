@@ -475,7 +475,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="63ad1ea3a90455dee9d77163cdafb028d8a90416"  # BakaSU main 2026-11-23, native SUSFS ledger support; full CI/device verification required
+          RESUKISU_COMMIT="63ad1ea3a90455dee9d77163cdafb028d8a90416"  # BakaSU main, native SUSFS ledger support; CI #45153926661 + device verified 2026-11-23
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 
@@ -808,7 +808,7 @@ jobs:
             # 选第一个与当前 KernelSU 源码接口兼容的提交（scripts/susfs_ksu_check.py），最多回退到下面的保底提交。
             # Keep the old SukiSU builtin/explicit legacy BakaSU rollback compatible.
             STABLE_SUSFS_COMMIT="31eb14add587b0a089dfe1819f92cc94920e141e"
-            # Keep the SukiSU auto-selection floor unchanged by the BakaSU candidate.
+            # SukiSU auto-selection floor (independent of the BakaSU pin).
             SUKISU_SUSFS_FLOOR="5436438b5cc77f146e04f71070da153dabe17a9d"
             BAKASU_SUSFS_COMMIT="784ac9e6fd49bb02499b5b60c57ccc9d0c680204"
             if [[ "${KSU_PINNED:-false}" == true ]]; then
@@ -820,7 +820,7 @@ jobs:
             fi
             SUSFS_AUTO=false
             # BakaSU: latest reviewed pair is reproducible; never silently walk back.
-            # Explicit unreviewed sources fail the SELinux backend contract below.
+            # BakaSU without native SUSFS SELinux registration fails closed below.
             if [[ "${IS_RESUKISU:-false}" == true && -z "${SUSFS_META:-}" && "${{ github.event.inputs.SUSFS_DEV }}" != "true" ]]; then
               SUSFS_META="$BAKASU_SUSFS_COMMIT"
             fi
@@ -834,7 +834,13 @@ jobs:
             COMMON_SRC="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
             susfs_ok() {
               if [[ "$IS_RESUKISU" == true ]]; then
-                python3 "$GITHUB_WORKSPACE/scripts/bakasu_selinux_compat.py" --check kernel_patches "$KSU_SRC" || return 1
+                # SUSFS with the SELinux type/AV ledger needs BakaSU to register its injected
+                # types/rules natively (upstream 0799a678+). Older BakaSU fails closed; no local bridge.
+                if grep -q 'susfs_add_sus_type' kernel_patches/fs/susfs.c &&
+                   ! grep -qE '^[[:space:]]*susfs_add_sus_type\(' "$KSU_SRC/selinux/sepolicy.c"; then
+                  echo "::error title=BakaSU/SUSFS::当前 BakaSU 没有原生注册 SUSFS SELinux 类型/规则，与所选 SUSFS 不兼容；请使用默认固定版本或显式选择不带 SELinux 账本的旧版 SUSFS"
+                  return 1
+                fi
               fi
               python3 "$GITHUB_WORKSPACE/scripts/susfs_feature_compat.py" --check kernel_patches "$KSU_SRC" &&
               python3 "$GITHUB_WORKSPACE/scripts/susfs_ksu_check.py" kernel_patches "$KSU_SRC" "$COMMON_SRC"
@@ -909,9 +915,9 @@ jobs:
               exit 1
             fi
             python3 "$GITHUB_WORKSPACE/scripts/susfs_fixups.py" post .
-            # Native BakaSU (>= 0799a678) keeps the SUSFS patch untouched; older pins use the audited bridge.
+            # BakaSU registers SUSFS SELinux types/rules natively; the SUSFS patch is used unmodified.
             if [[ "$IS_RESUKISU" == true ]]; then
-              python3 "$GITHUB_WORKSPACE/scripts/bakasu_selinux_compat.py" --apply "$SUSFS_DIR" "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/KernelSU/kernel" .
+              echo "SELINUX_BACKEND=bakasu-native-susfs-ledger" >> "$GITHUB_ENV"
             fi
             if [[ "$IS_RESUKISU" != true ]]; then
               # SukiSU-Ultra builtin 与 SUSFS 补丁的变量类型不一致（ksu_su_compat_enabled），见脚本说明

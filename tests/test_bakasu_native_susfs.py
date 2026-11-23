@@ -1,112 +1,106 @@
-"""Native BakaSU SUSFS SELinux backend selection. Synthetic layout, no kernel build."""
+"""Offline checks for native BakaSU + SUSFS SELinux integration. No network or kernel build.
+Run: python3 -m unittest discover -s tests -v
+"""
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-import bakasu_selinux_compat as compat  # noqa: E402
-import susfs_feature_compat  # noqa: E402
+from susfs_feature_compat import plan
 
-MK = ('ifeq ($(shell grep -q "ksu_selinux_hide_running" $(srctree)/security/selinux/hooks.c; echo $$?),0)\n'
-      '  $(info -- x)\n  ccflags-y += -DKSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE\nendif\n')
-SEPOLICY = ('#ifdef CONFIG_KSU_SUSFS\n'
-            'extern int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u32 c_type, u32 orig_avd_allowed);\n'
-            'extern int susfs_add_sus_type(const char *secctx, u32 type_value);\n#endif\n'
-            'static void a(void)\n{\n    susfs_add_sus_avd_allowed_by_type(1, 2, 3, 4);\n}\n'
-            'static void b(void)\n{\n    susfs_add_sus_type(name, 5);\n}\n')
-HIDE = ('#ifdef KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE\n#include "selinux_hide_susfs.c"\n'
-        '#else\n#include "selinux_hide_auto.c"\n#endif\n')
-SUSFS_C = ('int susfs_add_sus_type(const char *secctx, u32 type_value)\n{\n\treturn 0;\n}\n'
-           'int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u32 c_type, u32 orig_avd_allowed)\n{\n\treturn 0;\n}\n')
-PATCH = '+extern bool ksu_selinux_hide_running;\n+\treturn susfs_sel_write_access(file, buf, size);\n'
+WF = ROOT / '.github/workflows/Build Kernel OnePlus.yml'
+FLAG = 'CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER'
+BRACED = ('    case CMD_SUSFS_SET_PRIORITY_UID_FILTER: {\n'
+          '        susfs_set_priority_uid_filter(arg);\n'
+          '        return 0;\n'
+          '    }')
 
 
-class NativeBackendTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        root = Path(self.tmp.name)
-        self.ksu, self.sus, self.common = root / 'ksu', root / 'susfs', root / 'common'
-        files = {
-            self.ksu / 'tools/susfs_compat.mk': MK,
-            self.ksu / 'selinux/sepolicy.c': SEPOLICY,
-            self.ksu / 'feature/selinux_hide/selinux_hide.c': HIDE,
-            self.ksu / 'feature/selinux_hide/selinux_hide_susfs.c': '// susfs mode\n',
-            self.sus / 'fs/susfs.c': SUSFS_C,
-            self.sus / compat.SUSFS_PATCH: PATCH,
-            self.common / 'security/selinux/hooks.c': 'extern bool ksu_selinux_hide_running;\n',
-            self.common / 'security/selinux/selinuxfs.c': 'return susfs_sel_write_access(file, buf, size);\n',
-        }
-        for path, text in files.items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
 
-    def snapshot(self):
-        return {p: p.read_bytes() for p in Path(self.tmp.name).rglob('*') if p.is_file()}
 
-    def test_native_layout_selected_without_bridge(self):
-        self.assertTrue(compat.is_native(self.ksu))
-        self.assertEqual(compat.validate(self.sus, self.ksu), 'native')
+class NativeBakaSUSusfsTests(unittest.TestCase):
+    def test_local_bridge_is_retired(self):
+        wf = WF.read_text()
+        self.assertNotIn('bakasu_selinux_compat.py', wf)
+        self.assertNotIn('bakasu-snapshot-bridge', wf)
+        self.assertIn('SELINUX_BACKEND=bakasu-native-susfs-ledger', wf)
+        self.assertFalse((ROOT / 'scripts/bakasu_selinux_compat.py').exists())
+        self.assertFalse((ROOT / 'patches/bakasu').exists())
+        self.assertFalse((ROOT / 'tests/fixtures/bakasu_selinux').exists())
 
-    def test_native_apply_does_not_patch_and_records_label(self):
-        before = self.snapshot()
-        env = Path(self.tmp.name) / 'env'
-        with mock.patch.dict(os.environ, {'GITHUB_ENV': str(env)}):
-            result = compat.apply(self.sus, self.ksu, self.common)
-        self.assertIn('bridge not applied', result)
-        self.assertEqual(before, {p: b for p, b in self.snapshot().items() if p != env})
-        self.assertEqual(env.read_text(), 'SELINUX_BACKEND=' + compat.NATIVE_LABEL + '\n')
+    def run_guard(self, susfs_c, sepolicy):
+        source = WF.read_text()
+        a = source.index('            susfs_ok() {')
+        b = source.index('\n            }\n', a) + len('\n            }\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write(root / 'kernel_patches/fs/susfs.c', susfs_c)
+            write(root / 'ksu/selinux/sepolicy.c', sepolicy)
+            fake = root / 'bin/python3'
+            write(fake, '#!/bin/sh\nexit 0\n')
+            fake.chmod(0o755)
+            script = textwrap.dedent(source[a:b]) + '\nsusfs_ok\n'
+            return subprocess.run(
+                ['bash', '-euo', 'pipefail', '-c', script], cwd=tmp, text=True, capture_output=True,
+                env={**os.environ, 'PATH': str(root / 'bin') + os.pathsep + os.environ['PATH'],
+                     'IS_RESUKISU': 'true', 'KSU_SRC': str(root / 'ksu'),
+                     'COMMON_SRC': tmp, 'GITHUB_WORKSPACE': tmp})
 
-    def test_extern_declarations_alone_are_not_native(self):
-        p = self.ksu / 'selinux/sepolicy.c'
-        p.write_text(SEPOLICY.split('static void a')[0])
-        self.assertFalse(compat.is_native(self.ksu))
-        with self.assertRaisesRegex(ValueError, 'unreviewed BakaSU SELinux contract'):
-            compat.validate(self.sus, self.ksu)
+    def test_native_registration_is_accepted(self):
+        result = self.run_guard('int susfs_add_sus_type(const char *c, u32 v) { return 0; }\n',
+                                '    susfs_add_sus_type(type_name, type->value);\n')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_old_single_file_layout_is_never_native(self):
-        (self.ksu / 'feature/selinux_hide.c').write_text('// old layout\n')
-        self.assertFalse(compat.is_native(self.ksu))
+    def test_bakasu_without_native_registration_fails_closed(self):
+        result = self.run_guard('int susfs_add_sus_type(const char *c, u32 v) { return 0; }\n',
+                                'extern int susfs_add_sus_type(const char *secctx, u32 type_value);\n')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('没有原生注册', result.stdout)
 
-    def test_susfs_without_ledger_rejected(self):
-        (self.sus / 'fs/susfs.c').write_text('int other(void)\n{\n}\n')
-        with self.assertRaisesRegex(ValueError, 'no ledger function'):
-            compat.validate(self.sus, self.ksu)
+    def test_legacy_susfs_without_ledger_is_not_blocked(self):
+        result = self.run_guard('/* legacy susfs */\n', '/* legacy bakasu */\n')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_native_rejects_bridge_routes_in_kernel(self):
-        (self.common / 'security/selinux/selinuxfs.c').write_text(
-            'return my_write_access(file, buf, size);\nextern bool ksu_selinux_hide_running;\n')
-        with self.assertRaisesRegex(ValueError, 'snapshot bridge routes'):
-            compat.apply(self.sus, self.ksu, self.common)
+    def feature_tree(self, root, guarded):
+        sus, ksu = root / 'sus', root / 'ksu'
+        write(sus / 'fs/susfs.c', '#ifdef ' + FLAG + '\nvoid susfs_set_priority_uid_filter(void __user *arg) {}\n#endif\n')
+        write(sus / 'include/linux/susfs.h', '#ifdef ' + FLAG + '\nvoid susfs_set_priority_uid_filter(void __user *arg);\n#endif\n')
+        body = ('#ifdef ' + FLAG + '\n' + BRACED + '\n#endif // ' + FLAG + '\n') if guarded else (BRACED + '\n')
+        write(ksu / 'supercall/dispatch.c', 'switch (cmd) {\n' + body + '}\n')
+        write(ksu / 'Kconfig', 'config KSU_SUSFS_PRIORITY_UID_FILTER\n\tbool "priority"\n\tdepends on KSU_SUSFS\n\tdefault y\n\n'
+                               'config KSU_SUSFS_SUS_MAP\n\tbool "map"\nendmenu\n')
+        return sus, ksu
 
-    def test_missing_susfs_selection_rejected(self):
-        (self.ksu / 'feature/selinux_hide/selinux_hide.c').write_text('#include "selinux_hide_auto.c"\n')
-        with self.assertRaisesRegex(ValueError, 'selection missing'):
-            compat.validate(self.sus, self.ksu)
+    def test_native_upstream_priority_layout_needs_no_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(plan(*self.feature_tree(Path(tmp), guarded=True)), {})
+
+    def test_unguarded_braced_priority_block_is_wrapped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sus, ksu = self.feature_tree(Path(tmp), guarded=False)
+            changes = plan(sus, ksu)
+            self.assertIn('#ifdef ' + FLAG + '\n' + BRACED + '\n#endif', changes[ksu / 'supercall/dispatch.c'])
 
 
 class PriorityIoctlFormTests(unittest.TestCase):
     def test_bare_and_brace_forms_are_recognised(self):
+        import susfs_feature_compat
         bare = '    case CMD_SUSFS_SET_PRIORITY_UID_FILTER:\n        susfs_set_priority_uid_filter(arg);\n        return 0;'
-        brace = ('    case CMD_SUSFS_SET_PRIORITY_UID_FILTER: {\n        susfs_set_priority_uid_filter(arg);\n'
-                 '        return 0;\n    }')
         self.assertEqual(susfs_feature_compat.CALL.search(bare).group(0), bare)
-        self.assertEqual(susfs_feature_compat.CALL.search(brace).group(0), brace)
+        self.assertEqual(susfs_feature_compat.CALL.search(BRACED).group(0), BRACED)
 
     def test_unbalanced_brace_form_is_rejected(self):
+        import susfs_feature_compat
         broken = '    case CMD_SUSFS_SET_PRIORITY_UID_FILTER: {\n        susfs_set_priority_uid_filter(arg);\n        return 0;\n'
         self.assertIsNone(susfs_feature_compat.CALL.search(broken))
-
-
-class WorkflowTests(unittest.TestCase):
-    def test_workflow_no_longer_hardcodes_bridge_label(self):
-        wf = (ROOT / '.github/workflows/Build Kernel OnePlus.yml').read_text()
-        self.assertNotIn('echo "SELINUX_BACKEND=bakasu-snapshot-bridge-v1"', wf)
-        self.assertIn("'SELINUX_BACKEND'", wf)
 
 
 if __name__ == '__main__':

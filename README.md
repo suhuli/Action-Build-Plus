@@ -1,24 +1,20 @@
 **简体中文** | [English](README-en.md)
 
-> **2026-11-06 BakaSU SELinux 适配修复（候选）**：BakaSU 默认固定最新已审核 SUSFS 提交，不再自动回退。三处 SELinux hook 使用 BakaSU 自身策略备份后端，未知上游组合明确拒绝；旧版/DEV 自定义来源可能不再通过检查。依赖没有回退，仍需完整 CI 和实机验收。详见 [适配说明](docs/2026-11-bakasu-selinux-bridge.md)。
-
 [![Build](https://img.shields.io/github/actions/workflow/status/suhuli/Action-Build-Plus/Build%20Kernel%20OnePlus.yml?branch=main&label=Build&logo=github-actions&style=flat-square)](https://github.com/suhuli/Action-Build-Plus/actions/workflows/Build%20Kernel%20OnePlus.yml)
 
 # Action-Build-Plus
 
-> **测试分支候选（2026-11-20）**：只更新 BakaSU/SUSFS 测试组合，尚未经完整 CI 编译或实机验收，不合入 `main`。详见[验收记录](docs/2026-11-20-bakasu-susfs-candidate.md)。
-
 为 **一加 Ace 竞速版**（`oneplus_ace_race_t` / MT6895 / Android 13）编译带 **BakaSU / SukiSU-Ultra + SUSFS** 的 Linux 5.10.110 内核，生成 AnyKernel3 刷机包。
 
-## 当前版本（2026-11-14）
+## 当前版本（2026-11-23）
 
-已恢复改版前的完整参数界面、顺序、默认值与直接选择方式，不使用 PROFILE 或覆盖层；更新本轮审查的四项依赖（待 CI 编译验证）。BakaSU 的原选项名仍为 `RESUKISU` / `RESUKISU_SPOOF`。
+已恢复改版前的完整参数界面、顺序、默认值与直接选择方式，不使用 PROFILE 或覆盖层。BakaSU 升至上游 `63ad1ea3`，由上游原生完成 SUSFS `784ac9e6` 的 SELinux 类型/规则注册与 UID 过滤适配，本地 SELinux 桥接已移除。BakaSU 的原选项名仍为 `RESUKISU` / `RESUKISU_SPOOF`。
 
 | 组件 | 固定版本 / 策略 |
 |---|---|
 | 机型源码 | [OnePlusOSS/android_kernel_5.10_oneplus_mt6895](https://github.com/OnePlusOSS/android_kernel_5.10_oneplus_mt6895)，`oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU（默认） | 官方 [`63ad1ea3`](https://github.com/Baka-SU/BakaSU/commit/63ad1ea3a90455dee9d77163cdafb028d8a90416)（2026-11-23 核对），包含上游原生 preinit 与原生 SUSFS SELinux 适配（不再打桥接补丁）；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
-| SUSFS v2.4.0 | BakaSU 候选固定 [`784ac9e6`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/784ac9e6fd49bb02499b5b60c57ccc9d0c680204)；SukiSU 仍自动选择最新兼容提交，保底 `5436438b` |
+| BakaSU（默认） | 官方 [`63ad1ea3`](https://github.com/Baka-SU/BakaSU/commit/63ad1ea3a90455dee9d77163cdafb028d8a90416)（2026-11-23 核对），包含上游原生 preinit 与原生 SUSFS SELinux 适配；不绕过上游 SUSFS 限制，不沿用旧 Fork 的 `KSU_NO_PREINIT` 适配 |
+| SUSFS v2.4.0 | BakaSU 固定 [`784ac9e6`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/784ac9e6fd49bb02499b5b60c57ccc9d0c680204)；SukiSU 仍自动选择最新兼容提交，保底 `5436438b` |
 | SukiSU-Ultra | `builtin` [`1cfa5734`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/1cfa57340590971cba7521ed536da8ebbedc5f0a)，UAPI 6 |
 | 显式旧版源码回退的 SUSFS 保底 | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e)，保留旧组合的回退能力 |
 | Baseband-guard | [`028ff7fd`](https://github.com/vc-teahouse/Baseband-guard/commit/028ff7fd509e2104596da7cc1ef8e6ce2a0c9082)，适配回移的 `selinux_cred` |
@@ -28,7 +24,7 @@
 | 构建环境 | 固定 Ubuntu 22.04，显式安装依赖并验证工具；make + ccache，失败时回退官方构建脚本 |
 
 > [!CAUTION]
-> 本轮四项更新尚待完整 CI 构建及真机验收；上一轮成功构建不能作为本轮的验证结果。静态检查、补丁成功或构建通过都不代表能稳定开机。刷入前备份当前 `boot`，异常时恢复已知可用的备份。
+> 默认组合（BakaSU `63ad1ea3` + SUSFS `784ac9e6`）已于 2026-11-23 通过完整 CI 构建（[#45153926661](https://github.com/suhuli/Action-Build-Plus/actions/runs/45153926661)）并实机刷入验证。其他组合或今后的依赖更新仍需单独编译和实机验收；静态检查、补丁成功或构建通过都不代表能稳定开机。刷入前备份当前 `boot`，异常时恢复已知可用的备份。
 
 ## 使用
 
@@ -66,16 +62,16 @@
 - SukiSU `builtin` 必须开启 SUSFS，否则即使能编译也无法正常获取 root。BakaSU 可通过 `SUSFS_META=-1` 关闭。
 - `scripts/susfs_ksu_check.py` 双向检查补丁所需的 KSU 符号及 KSU 调用的 `susfs_*` 实现；新 builtin 缺少 SELinux helper 的旧 SUSFS 会被拒绝。本轮增加对 BakaSU 已审查的 `my_setprocattr` 宏别名识别：要求真实函数定义、SUSFS hook 与上游 Kbuild 检测契约同时存在，不忽略缺失符号、不生成空实现。
 - 该检查不是完整 C 预处理器，不验证所有类型、配置、Kbuild 可达性或运行语义，不能代替完整编译和实机测试。
-- BakaSU 最新源码不包含 SUSFS priority UID filter 的完整管理器/调度集成；本次更新 SUSFS 内核侧与修复，**不宣称已启用该新功能的端到端支持**。
+- BakaSU `63ad1ea3` 已原生集成 SUSFS priority UID filter 与 sus_path UID filter（Kconfig、supercall 守卫与包扫描后刷新），`susfs_feature_compat.py` 对其不做任何修改。
 
 - `susfs_feature_compat.py` 在候选选择时只检查，选定后才应用真实上游 priority Kconfig，保护 ioctl 与包观察器调用，并对齐已审查的 SELinux helper 参数宽度；有效 `.config` 再验证是否启用。未知结构直接停止，不造空实现。
 - 最新 BakaSU 已取消伪装管理器 CI：选择 `RESUKISU_SPOOF` 会在编译前提示改选普通 `RESUKISU`。显式旧版本仅在源码仍提供伪装构建且有同提交产物时支持；不再静默换成普通 APK。
 
 ## SUSFS 选源和回退
 
-BakaSU 在 `SUSFS_META` 留空且未开启 `SUSFS_DEV` 时固定 `784ac9e6`；不会静默回退。SukiSU 自动选择策略不变，默认保底 `5436438b`，显式旧版保底 `31eb14ad`。不兼容或未审查的组合停止构建。
+BakaSU 在 `SUSFS_META` 留空且未开启 `SUSFS_DEV` 时固定 `784ac9e6`；不会静默回退。SukiSU 自动选择策略不变，默认保底 `5436438b`，显式旧版保底 `31eb14ad`。不兼容的组合停止构建：所选 SUSFS 带 SELinux 类型/规则账本时，BakaSU 必须原生注册（上游 `0799a678` 及之后），否则直接报错。
 
-- 候选 SUSFS：`SUSFS_META=784ac9e6fd49bb02499b5b60c57ccc9d0c680204`。回退到此前验证的包，或同时指定旧 BakaSU `548d1dda` 和旧 SUSFS `5436438b` 的完整提交。
+- 早于 `0799a678` 的 BakaSU（如 `7b65bde0`、`548d1dda`）以前依赖本地 SELinux 桥接，桥接已移除，不能再搭配带 SELinux 账本的 SUSFS（`b0e47464` 及之后）。需要回退请保留旧刷机包，或使用下面不带账本的旧组合。
 - 回退上一次 BakaSU：`KSU_META=//5b76b884c75f729a220bb317aa4a4fc78f0e0e9c`，配 `SUSFS_META=31eb14add587b0a089dfe1819f92cc94920e141e`。
 - 更早 BakaSU release：`KSU_META=//239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb`。
 - 更早 SUSFS：`ca7093a1a26f7911987110c34a1352d74cfb1d09` 或 `82f08351fadb8b19dd6591bd14634d02ad832145`，仅用于明确的兼容性回退，不保证适合新 BakaSU。
