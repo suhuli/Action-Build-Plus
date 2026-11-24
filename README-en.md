@@ -6,12 +6,12 @@ GitHub Actions kernel build for **OnePlus Ace Racing Edition** (`oneplus_ace_rac
 
 ## Current sources (2026-11-23)
 
-The complete pre-redesign input layout, ordering, defaults and direct-selection flow are restored, without PROFILE or an override layer. BakaSU is updated to upstream `63ad1ea3`, which natively registers SELinux types/rules and the UID filters for SUSFS `784ac9e6`; the local SELinux bridge has been removed. BakaSU retains the original RESUKISU / RESUKISU_SPOOF names.
+The complete pre-redesign input layout, ordering, defaults and direct-selection flow are restored, without PROFILE or an override layer. BakaSU is updated to upstream `57b2db60`, which natively registers SELinux types/rules and the UID filters for SUSFS `784ac9e6`; the local SELinux bridge has been removed. BakaSU retains the original RESUKISU / RESUKISU_SPOOF names.
 
 | Component | Pin / policy |
 |---|---|
 | Device source | OnePlusOSS/android_kernel_5.10_oneplus_mt6895, `oneplus/mt6895_t_13.0.0_ace_racing` |
-| BakaSU (default) | Official [`63ad1ea3`](https://github.com/Baka-SU/BakaSU/commit/63ad1ea3a90455dee9d77163cdafb028d8a90416), native upstream preinit and native SUSFS SELinux ledger support; no old Fork `KSU_NO_PREINIT` bridge |
+| BakaSU (default) | Official [`57b2db60`](https://github.com/Baka-SU/BakaSU/commit/57b2db6076f439cfd489f14576444e8f0f2f0a25), native upstream preinit and native SUSFS SELinux ledger support; no old Fork `KSU_NO_PREINIT` bridge |
 | SUSFS v2.4.0 | BakaSU pinned to [`784ac9e6`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/784ac9e6fd49bb02499b5b60c57ccc9d0c680204); SukiSU still auto-selects a compatible commit, with the unchanged `5436438b` floor |
 | SukiSU-Ultra | `builtin` @ `1cfa57340590971cba7521ed536da8ebbedc5f0a`, UAPI 6 |
 | SUSFS minimum for explicitly selected legacy sources | [`31eb14ad`](https://gitlab.com/simonpunk/susfs4ksu/-/commit/31eb14add587b0a089dfe1819f92cc94920e141e) |
@@ -21,7 +21,7 @@ The complete pre-redesign input layout, ordering, defaults and direct-selection 
 | Default ordinary SukiSU manager | [`645ef986`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/645ef9860b9b7f900bb5d1b27e224f2c311d39c0), UAPI 6; versionCode 41150; same main commit as release v4.3.0-r2, paired by exact-commit CI (CI filenames still contain r1) |
 | Build environment | Ubuntu 22.04, explicit apt dependencies and required-tool validation; make + ccache with official-script fallback |
 
-> **Note:** The default pair (BakaSU `63ad1ea3` + SUSFS `784ac9e6`) passed a full CI build ([#45153926661](https://github.com/suhuli/Action-Build-Plus/actions/runs/45153926661)) and was flashed and verified on device on 2026-11-23. Other combinations and future dependency updates still need their own build and device testing. Back up the current `boot` partition and retain a tested recovery method.
+> **Note:** The default pair (BakaSU `57b2db60` + SUSFS `784ac9e6`) is pending CI and device acceptance. The last device-verified pair is BakaSU `63ad1ea3` + SUSFS `784ac9e6` (2026-11-23, [#45153926661](https://github.com/suhuli/Action-Build-Plus/actions/runs/45153926661)); roll back with `KSU_META=//63ad1ea3a90455dee9d77163cdafb028d8a90416`. Other combinations and future dependency updates still need their own build and device testing. Back up the current `boot` partition and retain a tested recovery method.
 
 ## Usage
 
@@ -42,7 +42,7 @@ See the [Chinese parameter table](README.md#参数说明) for all existing input
 - Empty `SUSFS_META` with development mode off pins BakaSU to `784ac9e6`. SukiSU keeps automatic selection with the same `5436438b` floor (or `31eb14ad` for explicit older kernels). Incompatible pairs fail: when the selected SUSFS has the SELinux type/AV ledger, BakaSU must register it natively (upstream `0799a678`+).
 - `scripts/susfs_ksu_check.py` checks real non-static definitions. The audited BakaSU `my_setprocattr` alias is accepted only when the selected SUSFS hook, upstream Kbuild detection contract and real function definition all exist. Missing symbols are not ignored and no stub implementation is added.
 - This is not a full C preprocessor, ABI/type/configuration validation or runtime proof. Complete compilation and device tests remain necessary.
-- BakaSU `63ad1ea3` natively integrates the SUSFS priority UID filter and sus_path UID filter (Kconfig, supercall guard and refresh after package scans); `susfs_feature_compat.py` makes no changes to it.
+- BakaSU `63ad1ea3` and later natively integrate the SUSFS priority UID filter and sus_path UID filter (Kconfig, supercall guard and refresh after package scans); `susfs_feature_compat.py` makes no changes to it.
 - Default pinned SukiSU ordinary builds use the exact reviewed manager main commit. Custom/spoofed managers retain UAPI-based selection, with kernel versionCode bound to the selected APK. Do not manually mix unrelated latest manager builds.
 
 Explicit rollback options:
