@@ -24,7 +24,7 @@
 | 构建环境 | 固定 Ubuntu 22.04，显式安装依赖并验证工具；make + ccache，失败时回退官方构建脚本 |
 
 > [!CAUTION]
-> 默认组合（BakaSU `57b2db60` + SUSFS `784ac9e6`）待 CI 构建与实机验收。上一个实测通过的组合是 BakaSU `63ad1ea3` + SUSFS `784ac9e6`（2026-11-23，[#45153926661](https://github.com/suhuli/Action-Build-Plus/actions/runs/45153926661)），回退可用 `KSU_META=//63ad1ea3a90455dee9d77163cdafb028d8a90416`。其他组合或今后的依赖更新仍需单独编译和实机验收；静态检查、补丁成功或构建通过都不代表能稳定开机。刷入前备份当前 `boot`，异常时恢复已知可用的备份。
+> 默认组合（BakaSU `57b2db60` + SUSFS `784ac9e6`）已通过完整 CI 构建（[#45383035908](https://github.com/suhuli/Action-Build-Plus/actions/runs/45383035908)），并于 2026-11-27 实机刷入验证。上一个实测通过的组合是 BakaSU `63ad1ea3` + SUSFS `784ac9e6`（2026-11-23），回退可用 `KSU_META=//63ad1ea3a90455dee9d77163cdafb028d8a90416`。其他组合或今后的依赖更新仍需单独编译和实机验收；刷入前备份当前 `boot`，异常时恢复已知可用的备份。
 
 ## 使用
 

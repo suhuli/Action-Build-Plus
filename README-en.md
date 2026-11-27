@@ -21,7 +21,7 @@ The complete pre-redesign input layout, ordering, defaults and direct-selection 
 | Default ordinary SukiSU manager | [`645ef986`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/645ef9860b9b7f900bb5d1b27e224f2c311d39c0), UAPI 6; versionCode 41150; same main commit as release v4.3.0-r2, paired by exact-commit CI (CI filenames still contain r1) |
 | Build environment | Ubuntu 22.04, explicit apt dependencies and required-tool validation; make + ccache with official-script fallback |
 
-> **Note:** The default pair (BakaSU `57b2db60` + SUSFS `784ac9e6`) is pending CI and device acceptance. The last device-verified pair is BakaSU `63ad1ea3` + SUSFS `784ac9e6` (2026-11-23, [#45153926661](https://github.com/suhuli/Action-Build-Plus/actions/runs/45153926661)); roll back with `KSU_META=//63ad1ea3a90455dee9d77163cdafb028d8a90416`. Other combinations and future dependency updates still need their own build and device testing. Back up the current `boot` partition and retain a tested recovery method.
+> **Note:** The default pair (BakaSU `57b2db60` + SUSFS `784ac9e6`) passed a full CI build ([#45383035908](https://github.com/suhuli/Action-Build-Plus/actions/runs/45383035908)) and was flashed and verified on device on 2026-11-27. The previous device-verified pair is BakaSU `63ad1ea3` + SUSFS `784ac9e6` (2026-11-23); roll back with `KSU_META=//63ad1ea3a90455dee9d77163cdafb028d8a90416`. Other combinations and future dependency updates still need their own build and device testing. Back up the current `boot` partition and retain a tested recovery method.
 
 ## Usage
 
