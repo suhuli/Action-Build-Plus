@@ -1,37 +1,37 @@
 {
-  "reviewed_at": "2026-11-23",
-  "bakasu": {
-    "repo": "Baka-SU/BakaSU",
-    "branch": "main",
-    "commit": "63ad1ea3a90455dee9d77163cdafb028d8a90416"
-  },
-  "sukisu": {
-    "repo": "SukiSU-Ultra/SukiSU-Ultra",
-    "branch": "builtin",
-    "commit": "1cfa57340590971cba7521ed536da8ebbedc5f0a"
-  },
-  "sukisu_manager": {
-    "repo": "SukiSU-Ultra/SukiSU-Ultra",
-    "branch": "main",
-    "commit": "645ef9860b9b7f900bb5d1b27e224f2c311d39c0"
-  },
-  "susfs": {
-    "repo": "https://gitlab.com/simonpunk/susfs4ksu.git",
-    "branch": "gki-android12-5.10",
-    "commit": "784ac9e6fd49bb02499b5b60c57ccc9d0c680204",
-    "sukisu_floor": "5436438b5cc77f146e04f71070da153dabe17a9d"
-  },
-  "kpm": {
-    "repo": "SukiSU-Ultra/SukiSU_patch",
-    "commit": "eec45788c9a115e5498040298133336d6b6071dd",
-    "patch_linux_sha256": "5b4984fbe7771925542d27b159278184cf3ce5064dafb751f8a2fb073b922b3f"
-  },
-  "anykernel3": {
-    "repo": "Numbersf/AnyKernel3",
-    "commit": "47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7"
-  },
-  "bbg": {
-    "repo": "vc-teahouse/Baseband-guard",
-    "commit": "028ff7fd509e2104596da7cc1ef8e6ce2a0c9082"
-  }
+ "reviewed_at": "2026-11-24",
+ "bakasu": {
+  "repo": "Baka-SU/BakaSU",
+  "branch": "main",
+  "commit": "57b2db6076f439cfd489f14576444e8f0f2f0a25"
+ },
+ "sukisu": {
+  "repo": "SukiSU-Ultra/SukiSU-Ultra",
+  "branch": "builtin",
+  "commit": "1cfa57340590971cba7521ed536da8ebbedc5f0a"
+ },
+ "sukisu_manager": {
+  "repo": "SukiSU-Ultra/SukiSU-Ultra",
+  "branch": "main",
+  "commit": "645ef9860b9b7f900bb5d1b27e224f2c311d39c0"
+ },
+ "susfs": {
+  "repo": "https://gitlab.com/simonpunk/susfs4ksu.git",
+  "branch": "gki-android12-5.10",
+  "commit": "784ac9e6fd49bb02499b5b60c57ccc9d0c680204",
+  "sukisu_floor": "5436438b5cc77f146e04f71070da153dabe17a9d"
+ },
+ "kpm": {
+  "repo": "SukiSU-Ultra/SukiSU_patch",
+  "commit": "eec45788c9a115e5498040298133336d6b6071dd",
+  "patch_linux_sha256": "5b4984fbe7771925542d27b159278184cf3ce5064dafb751f8a2fb073b922b3f"
+ },
+ "anykernel3": {
+  "repo": "Numbersf/AnyKernel3",
+  "commit": "47f23f7ece3ef212a392ec9ea5466e5f0b55d3c7"
+ },
+ "bbg": {
+  "repo": "vc-teahouse/Baseband-guard",
+  "commit": "028ff7fd509e2104596da7cc1ef8e6ce2a0c9082"
+ }
 }

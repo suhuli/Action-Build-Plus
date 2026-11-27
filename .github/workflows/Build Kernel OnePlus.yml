@@ -475,7 +475,7 @@ jobs:
           # 固定源码提交；maintenance.yml 检查上游，release 标签及其提交单独记录
           # TAG 仅记录最近的 release 标签，不再用它 checkout 默认内核或选择默认 APK。
           RESUKISU_TAG="v4.2.0-rc3"
-          RESUKISU_COMMIT="63ad1ea3a90455dee9d77163cdafb028d8a90416"  # BakaSU main, native SUSFS ledger support; CI #45153926661 + device verified 2026-11-23
+          RESUKISU_COMMIT="57b2db6076f439cfd489f14576444e8f0f2f0a25"  # BakaSU main, native SUSFS ledger support; CI #45383035908 + device verified 2026-11-27 (previous verified: 63ad1ea3)
           RESUKISU_RELEASE_COMMIT="239e1e8871b8fcd51a6e5b3002e0ba522fdd99fb"  # v4.2.0-rc3 release APK 对应的旧提交，仅显式回退到此提交时使用
           SUKISU_BUILTIN_COMMIT="1cfa57340590971cba7521ed536da8ebbedc5f0a"  # SukiSU-Ultra builtin, UAPI 6; reviewed 2026-11-06, paired with modern SUSFS
 

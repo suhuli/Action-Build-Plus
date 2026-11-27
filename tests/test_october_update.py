@@ -8,7 +8,7 @@ from test_susfs_auto import make_susfs, write, run_check
 from test_bakasu_pin import WF, bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BAKA = '63ad1ea3a90455dee9d77163cdafb028d8a90416'
+BAKA = '57b2db6076f439cfd489f14576444e8f0f2f0a25'
 SUSFS = '784ac9e6fd49bb02499b5b60c57ccc9d0c680204'
 SUKISU_FLOOR = '5436438b5cc77f146e04f71070da153dabe17a9d'
 LEGACY = '31eb14add587b0a089dfe1819f92cc94920e141e'
